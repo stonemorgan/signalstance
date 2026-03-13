@@ -32,3 +32,14 @@ CONTENT_SCHEDULE = {
         "suggestion": "Share a quick tip or insight that builds confidence"
     },
 }
+
+# Suggested posting times (EST) for each day
+# These are LinkedIn engagement sweet spots for professional audiences
+# Dana uses these as guidance when scheduling on LinkedIn
+SUGGESTED_TIMES = {
+    0: "8:30 AM",   # Monday
+    1: "9:00 AM",   # Tuesday
+    2: "8:30 AM",   # Wednesday
+    3: "9:00 AM",   # Thursday
+    4: "10:00 AM",  # Friday
+}

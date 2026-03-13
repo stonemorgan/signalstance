@@ -40,6 +40,12 @@
             <div id="today-banner" class="today-banner hidden"></div>
         </header>
 
+        <div class="tab-bar">
+            <button class="tab-btn active" data-tab="create" id="tab-btn-create">Create</button>
+            <button class="tab-btn" data-tab="calendar" id="tab-btn-calendar">Calendar</button>
+        </div>
+
+        <div id="tab-create">
         <section class="category-section">
             <h2>What kind of post?</h2>
             <div class="category-grid">
@@ -121,6 +127,22 @@
                 <div id="history-list"></div>
             </div>
         </section>
+        </div><!-- end tab-create -->
+
+        <div id="tab-calendar" class="hidden">
+            <div class="cal-header">
+                <div class="cal-nav">
+                    <button class="cal-nav-btn" id="cal-prev">&laquo;</button>
+                    <div>
+                        <span class="cal-week-label" id="cal-week-label"></span>
+                        <span class="cal-week-relative" id="cal-week-relative"></span>
+                    </div>
+                    <button class="cal-nav-btn" id="cal-next">&raquo;</button>
+                </div>
+                <div class="cal-stats" id="cal-stats"></div>
+            </div>
+            <div id="cal-days"></div>
+        </div><!-- end tab-calendar -->
         {% endif %}
     </div>
 
@@ -794,6 +816,301 @@
                 if (!dateStr) return '';
                 const date = new Date(dateStr);
                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+
+            // ---- Tab Switching ----
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabCreate = document.getElementById('tab-create');
+            const tabCalendar = document.getElementById('tab-calendar');
+            let calendarLoaded = false;
+            let calendarWeekParam = 'current';
+            let calendarWeekStart = null; // ISO date string of current week's Monday
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const tab = btn.dataset.tab;
+                    if (tab === 'create') {
+                        tabCreate.classList.remove('hidden');
+                        tabCalendar.classList.add('hidden');
+                    } else {
+                        tabCreate.classList.add('hidden');
+                        tabCalendar.classList.remove('hidden');
+                        if (!calendarLoaded) {
+                            fetchCalendar('current');
+                            calendarLoaded = true;
+                        }
+                    }
+                });
+            });
+
+            // ---- Calendar ----
+            const calDays = document.getElementById('cal-days');
+            const calWeekLabel = document.getElementById('cal-week-label');
+            const calWeekRelative = document.getElementById('cal-week-relative');
+            const calStats = document.getElementById('cal-stats');
+            const calPrev = document.getElementById('cal-prev');
+            const calNext = document.getElementById('cal-next');
+
+            calPrev.addEventListener('click', () => {
+                if (!calendarWeekStart) return;
+                const d = new Date(calendarWeekStart + 'T00:00:00');
+                d.setDate(d.getDate() - 7);
+                fetchCalendar(d.toISOString().slice(0, 10));
+            });
+
+            calNext.addEventListener('click', () => {
+                if (!calendarWeekStart) return;
+                const d = new Date(calendarWeekStart + 'T00:00:00');
+                d.setDate(d.getDate() + 7);
+                fetchCalendar(d.toISOString().slice(0, 10));
+            });
+
+            function fetchCalendar(weekParam) {
+                calDays.innerHTML = '<p class="loading-text">Loading calendar...</p>';
+                fetch('/api/calendar?week=' + encodeURIComponent(weekParam))
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) {
+                            calDays.innerHTML = '<p class="empty-state">Could not load calendar.</p>';
+                            return;
+                        }
+                        calendarWeekStart = data.week_start;
+                        renderCalendarHeader(data);
+                        renderCalendarDays(data.slots);
+                    })
+                    .catch(() => {
+                        calDays.innerHTML = '<p class="empty-state">Could not load calendar.</p>';
+                    });
+            }
+
+            function renderCalendarHeader(data) {
+                const start = new Date(data.week_start + 'T00:00:00');
+                const end = new Date(data.week_end + 'T00:00:00');
+                const opts = { month: 'short', day: 'numeric' };
+                const yearOpts = { month: 'short', day: 'numeric', year: 'numeric' };
+                calWeekLabel.textContent = start.toLocaleDateString('en-US', opts) + ' \u2013 ' + end.toLocaleDateString('en-US', yearOpts);
+
+                // Relative label
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const weekStart = new Date(data.week_start + 'T00:00:00');
+                const todayMonday = new Date(today);
+                todayMonday.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+                const diffWeeks = Math.round((weekStart - todayMonday) / (7 * 86400000));
+
+                if (diffWeeks === 0) calWeekRelative.textContent = '(This week)';
+                else if (diffWeeks === 1) calWeekRelative.textContent = '(Next week)';
+                else if (diffWeeks === -1) calWeekRelative.textContent = '(Last week)';
+                else if (diffWeeks < 0) calWeekRelative.textContent = '(Past)';
+                else calWeekRelative.textContent = '';
+
+                // Stats
+                const s = data.stats;
+                calStats.textContent = s.filled + ' of ' + s.total + ' slots filled';
+            }
+
+            function renderCalendarDays(slots) {
+                calDays.innerHTML = '';
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                slots.forEach(slot => {
+                    const slotDate = new Date(slot.slot_date + 'T00:00:00');
+                    const isPast = slotDate < today;
+                    const card = document.createElement('div');
+                    card.className = 'day-card day-card--' + slot.status;
+                    card.dataset.slotId = slot.id;
+
+                    // Header
+                    const header = document.createElement('div');
+                    header.className = 'day-card-header';
+                    const dateEl = document.createElement('div');
+                    dateEl.className = 'day-card-date';
+                    dateEl.textContent = slot.day_name + ', ' + formatDate(slot.slot_date);
+                    header.appendChild(dateEl);
+
+                    if (slot.status !== 'empty') {
+                        const statusEl = document.createElement('div');
+                        statusEl.className = 'day-card-status day-card-status--' + slot.status;
+                        const statusLabels = {
+                            draft_ready: '\u270E Draft ready',
+                            scheduled: '\u25C9 Scheduled',
+                            published: '\u2713 Published',
+                            skipped: '\u2013 Skipped'
+                        };
+                        statusEl.textContent = statusLabels[slot.status] || slot.status;
+                        header.appendChild(statusEl);
+                    }
+                    card.appendChild(header);
+
+                    // Content type
+                    const typeEl = document.createElement('div');
+                    typeEl.className = 'day-card-type';
+                    typeEl.textContent = slot.content_type;
+                    card.appendChild(typeEl);
+
+                    // Body
+                    const body = document.createElement('div');
+                    body.className = 'day-card-body';
+
+                    if (slot.status === 'empty') {
+                        const emptyEl = document.createElement('div');
+                        emptyEl.className = 'day-card-empty';
+                        emptyEl.textContent = 'No content yet';
+                        body.appendChild(emptyEl);
+                    } else if (slot.status === 'skipped') {
+                        // No body content for skipped
+                    } else if (slot.draft) {
+                        const draftText = slot.draft.content || '';
+                        const truncLen = 200;
+                        const needsTrunc = draftText.length > truncLen;
+
+                        const draftEl = document.createElement('div');
+                        draftEl.className = 'day-card-draft';
+                        draftEl.textContent = needsTrunc ? draftText.substring(0, truncLen) + '...' : draftText;
+                        body.appendChild(draftEl);
+
+                        if (needsTrunc) {
+                            const toggleBtn = document.createElement('button');
+                            toggleBtn.className = 'day-card-toggle';
+                            toggleBtn.textContent = 'Show full post \u25BC';
+                            let expanded = false;
+                            toggleBtn.addEventListener('click', () => {
+                                expanded = !expanded;
+                                draftEl.textContent = expanded ? draftText : draftText.substring(0, truncLen) + '...';
+                                toggleBtn.textContent = expanded ? 'Show less \u25B2' : 'Show full post \u25BC';
+                            });
+                            body.appendChild(toggleBtn);
+                        }
+
+                        // Source info
+                        if (slot.draft.insight_category) {
+                            const srcEl = document.createElement('div');
+                            srcEl.className = 'day-card-source';
+                            const insightPreview = (slot.draft.insight_text || '').substring(0, 60);
+                            srcEl.textContent = '\u2500\u2500 ' + formatCategory(slot.draft.insight_category) + ' post' +
+                                (insightPreview ? ' \u00B7 "' + insightPreview + '..."' : '');
+                            body.appendChild(srcEl);
+                        }
+
+                        // Time info
+                        const timeEl = document.createElement('div');
+                        timeEl.className = 'day-card-time';
+                        if (slot.status === 'published') {
+                            timeEl.textContent = 'Published' + (slot.scheduled_time ? ' at ' + slot.scheduled_time + ' EST' : '');
+                        } else if (slot.status === 'scheduled') {
+                            timeEl.textContent = 'Scheduled for ' + (slot.scheduled_time || slot.suggested_time) + ' EST on LinkedIn';
+                        } else {
+                            timeEl.textContent = 'Suggested time: ' + slot.suggested_time + ' EST';
+                        }
+                        body.appendChild(timeEl);
+                    }
+                    card.appendChild(body);
+
+                    // Actions (only for non-past weeks)
+                    if (!isPast) {
+                        const actions = document.createElement('div');
+                        actions.className = 'day-card-actions';
+
+                        if (slot.status === 'empty') {
+                            const genBtn = document.createElement('button');
+                            genBtn.className = 'btn-primary';
+                            genBtn.textContent = 'Generate Content';
+                            genBtn.addEventListener('click', () => {
+                                console.log('Generate Content for slot', slot.id);
+                            });
+
+                            const bankBtn = document.createElement('button');
+                            bankBtn.className = 'btn-secondary-sm';
+                            bankBtn.textContent = 'Pick from Bank';
+                            bankBtn.addEventListener('click', () => {
+                                console.log('Pick from Bank for slot', slot.id);
+                            });
+
+                            const skipBtn = document.createElement('button');
+                            skipBtn.className = 'btn-skip';
+                            skipBtn.textContent = 'Skip';
+                            skipBtn.addEventListener('click', () => doSkipToggle(slot.id));
+
+                            actions.appendChild(genBtn);
+                            actions.appendChild(bankBtn);
+                            actions.appendChild(skipBtn);
+                        } else if (slot.status === 'draft_ready') {
+                            const schedBtn = document.createElement('button');
+                            schedBtn.className = 'btn-primary';
+                            schedBtn.textContent = 'Copy & Schedule on LinkedIn \u2197';
+                            schedBtn.addEventListener('click', () => {
+                                console.log('Copy & Schedule for slot', slot.id);
+                            });
+
+                            const changeBtn = document.createElement('button');
+                            changeBtn.className = 'btn-secondary-sm';
+                            changeBtn.textContent = 'Change';
+                            changeBtn.addEventListener('click', () => {
+                                console.log('Change draft for slot', slot.id);
+                            });
+
+                            const clearBtn = document.createElement('button');
+                            clearBtn.className = 'btn-secondary-sm';
+                            clearBtn.textContent = 'Clear';
+                            clearBtn.addEventListener('click', () => {
+                                console.log('Clear slot', slot.id);
+                            });
+
+                            actions.appendChild(schedBtn);
+                            actions.appendChild(changeBtn);
+                            actions.appendChild(clearBtn);
+                        } else if (slot.status === 'scheduled') {
+                            const pubBtn = document.createElement('button');
+                            pubBtn.className = 'btn-primary';
+                            pubBtn.textContent = 'Mark as Published \u2713';
+                            pubBtn.addEventListener('click', () => {
+                                console.log('Mark as Published for slot', slot.id);
+                            });
+
+                            const unschedBtn = document.createElement('button');
+                            unschedBtn.className = 'btn-secondary-sm';
+                            unschedBtn.textContent = 'Unschedule';
+                            unschedBtn.addEventListener('click', () => {
+                                console.log('Unschedule slot', slot.id);
+                            });
+
+                            actions.appendChild(pubBtn);
+                            actions.appendChild(unschedBtn);
+                        } else if (slot.status === 'skipped') {
+                            const unskipBtn = document.createElement('button');
+                            unskipBtn.className = 'btn-secondary-sm';
+                            unskipBtn.textContent = 'Unskip';
+                            unskipBtn.addEventListener('click', () => doSkipToggle(slot.id));
+
+                            actions.appendChild(unskipBtn);
+                        }
+                        // published = no action buttons
+
+                        if (actions.children.length > 0) {
+                            card.appendChild(actions);
+                        }
+                    }
+
+                    calDays.appendChild(card);
+                });
+            }
+
+            function doSkipToggle(slotId) {
+                fetch('/api/calendar/skip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slot_id: slotId })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        fetchCalendar(calendarWeekStart || 'current');
+                    }
+                })
+                .catch(() => {});
             }
         })();
     </script>

@@ -21,3 +21,17 @@ CREATE TABLE IF NOT EXISTS config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS calendar_slots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slot_date DATE NOT NULL,
+    day_of_week INTEGER NOT NULL,
+    content_type TEXT NOT NULL,
+    generation_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'empty',
+    scheduled_time TEXT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (generation_id) REFERENCES generations(id)
+);

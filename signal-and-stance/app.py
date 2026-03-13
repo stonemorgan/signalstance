@@ -1,16 +1,22 @@
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from flask import Flask, jsonify, render_template, request
 
-from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT
+from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT, SUGGESTED_TIMES
 from database import (
+    assign_draft_to_slot,
+    clear_slot,
+    generate_week_slots,
     get_generation_history,
     get_insights,
+    get_week_slots,
+    get_week_stats,
     init_db,
     mark_generation_copied,
     save_generation,
     save_insight,
+    update_slot_status,
 )
 from engine import generate_autopilot, generate_from_url, generate_posts
 
@@ -69,7 +75,26 @@ def generate():
                 "angle": draft["angle"],
             })
 
-        return jsonify({"success": True, "insight_id": insight_id, "drafts": drafts_response})
+        response = {"success": True, "insight_id": insight_id, "drafts": drafts_response}
+
+        for_slot_id = data.get("for_slot_id")
+        if for_slot_id:
+            from database import get_connection
+            conn = get_connection()
+            slot = conn.execute(
+                "SELECT id, slot_date, day_of_week FROM calendar_slots WHERE id = ?",
+                (for_slot_id,),
+            ).fetchone()
+            conn.close()
+            if slot:
+                day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+                response["for_slot"] = {
+                    "slot_id": slot["id"],
+                    "day_name": day_names[slot["day_of_week"]],
+                    "date": slot["slot_date"],
+                }
+
+        return jsonify(response)
 
     except Exception as e:
         return _handle_api_error(e)
@@ -241,6 +266,147 @@ def history():
         limit = min(int(request.args.get("limit", 30)), 100)
         rows = get_generation_history(limit=limit)
         return jsonify({"success": True, "history": rows})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/calendar")
+def calendar():
+    try:
+        week_param = request.args.get("week", "current")
+        today = date.today()
+
+        if week_param == "current":
+            monday = today - timedelta(days=today.weekday())
+        elif week_param == "next":
+            monday = today - timedelta(days=today.weekday()) + timedelta(weeks=1)
+        else:
+            try:
+                target = date.fromisoformat(week_param)
+                monday = target - timedelta(days=target.weekday())
+            except ValueError:
+                return jsonify({"success": False, "error": "Invalid week parameter"}), 400
+
+        friday = monday + timedelta(days=4)
+        generate_week_slots(monday)
+        slots = get_week_slots(monday)
+        stats = get_week_stats(monday)
+
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        for slot in slots:
+            dow = slot.get("day_of_week", 0)
+            slot["day_name"] = day_names[dow]
+            schedule = CONTENT_SCHEDULE.get(dow, {})
+            slot["suggestion"] = schedule.get("suggestion", "")
+            slot["suggested_time"] = SUGGESTED_TIMES.get(dow, "9:00 AM")
+
+        return jsonify({
+            "success": True,
+            "week_start": monday.isoformat(),
+            "week_end": friday.isoformat(),
+            "stats": stats,
+            "slots": slots,
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/calendar/assign", methods=["POST"])
+def calendar_assign():
+    try:
+        data = request.get_json(silent=True) or {}
+        slot_id = data.get("slot_id")
+        generation_id = data.get("generation_id")
+
+        if not slot_id or not generation_id:
+            return jsonify({"success": False, "error": "slot_id and generation_id are required"}), 400
+
+        from database import get_connection
+        conn = get_connection()
+        slot = conn.execute("SELECT id FROM calendar_slots WHERE id = ?", (slot_id,)).fetchone()
+        gen = conn.execute("SELECT id FROM generations WHERE id = ?", (generation_id,)).fetchone()
+        conn.close()
+
+        if not slot:
+            return jsonify({"success": False, "error": "Slot not found"}), 404
+        if not gen:
+            return jsonify({"success": False, "error": "Generation not found"}), 404
+
+        assign_draft_to_slot(slot_id, generation_id)
+        return jsonify({"success": True})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/calendar/status", methods=["POST"])
+def calendar_status():
+    try:
+        data = request.get_json(silent=True) or {}
+        slot_id = data.get("slot_id")
+        status = data.get("status")
+        scheduled_time = data.get("scheduled_time")
+        notes = data.get("notes")
+
+        if not slot_id or not status:
+            return jsonify({"success": False, "error": "slot_id and status are required"}), 400
+
+        valid_statuses = {"empty", "draft_ready", "scheduled", "published", "skipped"}
+        if status not in valid_statuses:
+            return jsonify({"success": False, "error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"}), 400
+
+        update_slot_status(slot_id, status, scheduled_time, notes)
+        return jsonify({"success": True})
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/calendar/clear", methods=["POST"])
+def calendar_clear():
+    try:
+        data = request.get_json(silent=True) or {}
+        slot_id = data.get("slot_id")
+
+        if not slot_id:
+            return jsonify({"success": False, "error": "slot_id is required"}), 400
+
+        clear_slot(slot_id)
+        return jsonify({"success": True})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/calendar/skip", methods=["POST"])
+def calendar_skip():
+    try:
+        data = request.get_json(silent=True) or {}
+        slot_id = data.get("slot_id")
+
+        if not slot_id:
+            return jsonify({"success": False, "error": "slot_id is required"}), 400
+
+        from database import get_connection
+        conn = get_connection()
+        slot = conn.execute("SELECT status FROM calendar_slots WHERE id = ?", (slot_id,)).fetchone()
+        conn.close()
+
+        if not slot:
+            return jsonify({"success": False, "error": "Slot not found"}), 404
+
+        if slot["status"] == "skipped":
+            clear_slot(slot_id)
+        else:
+            update_slot_status(slot_id, "skipped")
+
+        return jsonify({"success": True})
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

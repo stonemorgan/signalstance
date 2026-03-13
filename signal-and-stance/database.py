@@ -1,7 +1,8 @@
 import os
 import sqlite3
+from datetime import date, datetime, timedelta
 
-from config import DATABASE_PATH
+from config import CONTENT_SCHEDULE, DATABASE_PATH, SUGGESTED_TIMES
 
 
 def get_connection():
@@ -127,3 +128,171 @@ def get_generation_history(limit=30):
 
     conn.close()
     return history
+
+
+def _get_monday(start_date=None):
+    """Calculate the Monday of the week containing start_date."""
+    if start_date is None:
+        start_date = date.today()
+    elif isinstance(start_date, str):
+        start_date = date.fromisoformat(start_date)
+    return start_date - timedelta(days=start_date.weekday())
+
+
+def generate_week_slots(start_date=None):
+    """Create calendar slots for Mon-Fri if they don't exist."""
+    monday = _get_monday(start_date)
+    conn = get_connection()
+
+    existing = conn.execute(
+        "SELECT COUNT(*) FROM calendar_slots WHERE slot_date BETWEEN ? AND ?",
+        (monday.isoformat(), (monday + timedelta(days=4)).isoformat()),
+    ).fetchone()[0]
+
+    if existing >= 5:
+        conn.close()
+        return
+
+    for day_offset in range(5):
+        slot_date = monday + timedelta(days=day_offset)
+        already = conn.execute(
+            "SELECT id FROM calendar_slots WHERE slot_date = ?",
+            (slot_date.isoformat(),),
+        ).fetchone()
+        if already:
+            continue
+        schedule = CONTENT_SCHEDULE.get(day_offset, {})
+        content_type = schedule.get("type", "General")
+        conn.execute(
+            "INSERT INTO calendar_slots (slot_date, day_of_week, content_type) VALUES (?, ?, ?)",
+            (slot_date.isoformat(), day_offset, content_type),
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def get_week_slots(start_date=None):
+    """Return 5 slot dicts for Mon-Fri with joined generation/insight data."""
+    monday = _get_monday(start_date)
+    friday = monday + timedelta(days=4)
+    conn = get_connection()
+
+    rows = conn.execute(
+        """SELECT cs.*,
+                  g.content AS draft_content,
+                  g.insight_id AS draft_insight_id,
+                  i.category AS insight_category,
+                  i.raw_input AS insight_text
+           FROM calendar_slots cs
+           LEFT JOIN generations g ON cs.generation_id = g.id
+           LEFT JOIN insights i ON g.insight_id = i.id
+           WHERE cs.slot_date BETWEEN ? AND ?
+           ORDER BY cs.slot_date""",
+        (monday.isoformat(), friday.isoformat()),
+    ).fetchall()
+
+    slots = []
+    for row in rows:
+        d = dict(row)
+        if d.get("generation_id"):
+            d["draft"] = {
+                "generation_id": d["generation_id"],
+                "content": d.pop("draft_content"),
+                "insight_category": d.pop("insight_category"),
+                "insight_text": d.pop("insight_text"),
+            }
+        else:
+            d.pop("draft_content", None)
+            d.pop("insight_category", None)
+            d.pop("insight_text", None)
+            d["draft"] = None
+        d.pop("draft_insight_id", None)
+        slots.append(d)
+
+    conn.close()
+    return slots
+
+
+def assign_draft_to_slot(slot_id, generation_id):
+    """Link a generation to a slot and set status to draft_ready."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE calendar_slots SET generation_id = ?, status = 'draft_ready', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (generation_id, slot_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+# Legal status transitions
+_LEGAL_TRANSITIONS = {
+    "empty": {"draft_ready", "skipped"},
+    "draft_ready": {"scheduled", "empty", "skipped"},
+    "scheduled": {"published", "draft_ready", "skipped"},
+    "published": {"skipped"},
+    "skipped": {"empty"},
+}
+
+
+def update_slot_status(slot_id, status, scheduled_time=None, notes=None):
+    """Update a slot's status after validating the transition is legal."""
+    conn = get_connection()
+    current = conn.execute(
+        "SELECT status FROM calendar_slots WHERE id = ?", (slot_id,)
+    ).fetchone()
+    if not current:
+        conn.close()
+        raise ValueError("Slot not found")
+
+    current_status = current["status"]
+    if status not in _LEGAL_TRANSITIONS.get(current_status, set()):
+        conn.close()
+        raise ValueError(f"Cannot transition from '{current_status}' to '{status}'")
+
+    conn.execute(
+        """UPDATE calendar_slots
+           SET status = ?, scheduled_time = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?""",
+        (status, scheduled_time, notes, slot_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_slot(slot_id):
+    """Reset a slot to empty."""
+    conn = get_connection()
+    conn.execute(
+        """UPDATE calendar_slots
+           SET status = 'empty', generation_id = NULL,
+               scheduled_time = NULL, notes = NULL,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?""",
+        (slot_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_week_stats(start_date=None):
+    """Return status counts for the week."""
+    monday = _get_monday(start_date)
+    friday = monday + timedelta(days=4)
+    conn = get_connection()
+
+    rows = conn.execute(
+        """SELECT status, COUNT(*) as cnt
+           FROM calendar_slots
+           WHERE slot_date BETWEEN ? AND ?
+           GROUP BY status""",
+        (monday.isoformat(), friday.isoformat()),
+    ).fetchall()
+
+    stats = {"total": 0, "empty": 0, "draft_ready": 0, "scheduled": 0, "published": 0, "skipped": 0}
+    for row in rows:
+        stats[row["status"]] = row["cnt"]
+        stats["total"] += row["cnt"]
+    stats["filled"] = stats["draft_ready"] + stats["scheduled"] + stats["published"]
+    conn.close()
+    return stats

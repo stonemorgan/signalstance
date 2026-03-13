@@ -40,7 +40,7 @@ python app.py
 
 ## Usage
 
-### Daily Workflow
+### Daily Workflow (Create Tab)
 
 1. Open the app and check today's content suggestion in the banner
 2. Choose one of three input methods:
@@ -54,6 +54,18 @@ python app.py
 3. Review the 3 draft variations
 4. Click "Copy" on the best one
 5. Paste into LinkedIn, make any final tweaks, and post
+
+### Weekly Workflow (Calendar Tab)
+
+The Calendar tab shows your week laid out with content slots for Monday through Friday. Each day has a content type (Pattern, Tactical Tip, Deep Dive, Hot Take, Quick Win) and a suggested posting time.
+
+1. Switch to the **Calendar** tab
+2. Navigate weeks with the arrow buttons
+3. Each day card shows its current status: empty, draft ready, scheduled, published, or skipped
+4. Use **Skip** to mark days you don't plan to post
+5. Past weeks display as read-only history
+
+Slot statuses flow in this order: **empty** → **draft ready** → **scheduled** → **published**. Any slot can also be marked as **skipped**.
 
 ### Tips for Good Insights
 
@@ -78,6 +90,10 @@ Click the moon/sun icon in the top-right corner to toggle dark mode. Your prefer
 ### Content Schedule
 
 Edit the `CONTENT_SCHEDULE` dict in `config.py` to change the daily content type suggestions. Days are numbered 0 (Monday) through 4 (Friday).
+
+### Suggested Posting Times
+
+Edit the `SUGGESTED_TIMES` dict in `config.py` to change the default time suggestions shown in the calendar. These are display-only — they remind you what time to schedule on LinkedIn.
 
 ### Voice Profile
 

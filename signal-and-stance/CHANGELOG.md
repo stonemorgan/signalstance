@@ -4,6 +4,27 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-13
+
+### Added
+- **Content Calendar** — weekly view (Mon-Fri) with 5 day cards showing slot status
+- Tab system to switch between Create and Calendar views
+- Calendar slots with 5 status states: empty, draft_ready, scheduled, published, skipped
+- Week navigation arrows to browse past and future weeks
+- Skip/Unskip toggle for days Dana decides not to post
+- Past week detection — past weeks render as read-only with no action buttons
+- "Show full post" toggle on day cards (truncates at ~200 characters)
+- Week stats summary in calendar header ("3 of 5 slots filled")
+- Suggested posting times per day in `config.py` (`SUGGESTED_TIMES`)
+- `calendar_slots` database table with generation foreign key
+- 6 new database functions: `generate_week_slots`, `get_week_slots`, `assign_draft_to_slot`, `update_slot_status`, `clear_slot`, `get_week_stats`
+- Status transition validation (prevents illegal state changes like empty → published)
+- 5 new API routes: `GET /api/calendar`, `POST /api/calendar/assign`, `/status`, `/clear`, `/skip`
+- `for_slot_id` optional parameter on `POST /api/generate` for calendar-aware generation
+- CSS variables for calendar status colors with dark theme support
+- Left border accent colors per slot status (draft=blue-gray, scheduled=blue, published=green, skipped=gray)
+- Placeholder handlers for Generate Content, Pick from Bank, Copy & Schedule, Change, Clear, Mark as Published, Unschedule (console.log stubs for Part 2 wiring)
+
 ## [1.0.0] - 2026-03-13
 
 ### Added
