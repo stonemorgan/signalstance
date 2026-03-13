@@ -1,5 +1,4 @@
 import re
-import sys
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request
@@ -35,7 +34,7 @@ def generate():
         return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"success": False, "error": "Request body must be JSON"}), 400
 
@@ -137,7 +136,7 @@ def generate_react_route():
         return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
 
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
 
         url = data.get("url", "").strip()
         if not url:
@@ -186,7 +185,7 @@ def generate_react_route():
 @app.route("/api/copy", methods=["POST"])
 def copy():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"success": False, "error": "Request body must be JSON"}), 400
 
@@ -265,7 +264,7 @@ def _handle_api_error(e):
         }), 503
 
     # Authentication
-    if "401" in error_str or "auth" in error_str.lower() or "invalid" in error_str.lower() and "key" in error_str.lower():
+    if "401" in error_str or "auth" in error_str.lower() or ("invalid" in error_str.lower() and "key" in error_str.lower()):
         return jsonify({
             "success": False,
             "error": "API key is invalid. Check your .env file.",
