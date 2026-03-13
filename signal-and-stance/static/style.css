@@ -1348,6 +1348,74 @@ textarea::placeholder {
     border-left: 2px solid var(--cal-scheduled);
 }
 
+/* Slot Picker Dropdown */
+.slot-picker {
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    margin-bottom: 0.35rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px var(--card-shadow);
+    padding: 0.5rem;
+    min-width: 260px;
+    z-index: 10;
+}
+
+.slot-picker-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0.25rem 0.4rem 0.4rem;
+}
+
+.slot-picker-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.45rem 0.5rem;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.slot-picker-item:hover {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.slot-picker-cancel {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 0.35rem;
+    margin-top: 0.25rem;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border-row);
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    cursor: pointer;
+}
+
+.slot-picker-cancel:hover {
+    color: var(--text-secondary);
+}
+
+.slot-picker-empty {
+    font-size: 0.8rem;
+    color: var(--text-faint);
+    padding: 0.5rem;
+    text-align: center;
+}
+
 /* Hidden utility */
 .hidden {
     display: none !important;

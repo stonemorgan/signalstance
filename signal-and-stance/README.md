@@ -52,7 +52,7 @@ python app.py
 **Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool searches current career/hiring news and generates posts based on what it finds.
 
 3. Review the 3 draft variations
-4. Click "Copy" on the best one
+4. Click "Copy" on the best one, or click **"Add to Calendar"** to assign the draft to an empty calendar slot
 5. Paste into LinkedIn, make any final tweaks, and post
 
 ### Weekly Workflow (Calendar Tab)

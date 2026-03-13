@@ -488,6 +488,7 @@
                     btnRow.style.display = 'flex';
                     btnRow.style.gap = '0.5rem';
                     btnRow.style.alignItems = 'center';
+                    btnRow.style.position = 'relative';
 
                     const copyBtn = document.createElement('button');
                     copyBtn.className = 'btn-copy';
@@ -501,6 +502,12 @@
                         useBtn.textContent = 'Use for ' + forSlotDay + ' \u2197';
                         useBtn.addEventListener('click', () => assignToSlot(forSlotId, draft.id));
                         btnRow.appendChild(useBtn);
+                    } else {
+                        const calBtn = document.createElement('button');
+                        calBtn.className = 'btn-use-slot';
+                        calBtn.textContent = 'Add to Calendar \u2197';
+                        calBtn.addEventListener('click', () => showSlotPicker(calBtn, draft.id));
+                        btnRow.appendChild(calBtn);
                     }
 
                     card.appendChild(angle);
@@ -1549,6 +1556,67 @@
                     }
                 })
                 .catch(() => {});
+            }
+
+            function showSlotPicker(anchorBtn, generationId) {
+                // Close any existing picker
+                const existing = document.querySelector('.slot-picker');
+                if (existing) { existing.remove(); return; }
+                document.querySelectorAll('.slot-picker').forEach(el => el.remove());
+
+                const picker = document.createElement('div');
+                picker.className = 'slot-picker';
+                picker.innerHTML = '<p class="loading-text">Loading...</p>';
+                anchorBtn.parentElement.appendChild(picker);
+
+                // Fetch current and next week slots
+                Promise.all([
+                    fetch('/api/calendar?week=current').then(r => r.json()),
+                    fetch('/api/calendar?week=next').then(r => r.json())
+                ]).then(([cur, nxt]) => {
+                    const empty = [];
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    [cur, nxt].forEach(week => {
+                        if (!week.success) return;
+                        week.slots.forEach(s => {
+                            if (s.status === 'empty' && new Date(s.slot_date + 'T00:00:00') >= today) {
+                                empty.push(s);
+                            }
+                        });
+                    });
+
+                    if (empty.length === 0) {
+                        picker.innerHTML = '<p class="slot-picker-empty">No empty slots available this week or next.</p>';
+                        return;
+                    }
+
+                    picker.innerHTML = '';
+                    const title = document.createElement('div');
+                    title.className = 'slot-picker-title';
+                    title.textContent = 'Pick a day';
+                    picker.appendChild(title);
+
+                    empty.forEach(slot => {
+                        const item = document.createElement('button');
+                        item.className = 'slot-picker-item';
+                        item.textContent = slot.day_name + ', ' + formatDate(slot.slot_date) + ' \u2014 ' + slot.content_type;
+                        item.addEventListener('click', () => {
+                            picker.remove();
+                            assignToSlot(slot.id, generationId);
+                        });
+                        picker.appendChild(item);
+                    });
+
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'slot-picker-cancel';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.addEventListener('click', () => picker.remove());
+                    picker.appendChild(cancelBtn);
+                }).catch(() => {
+                    picker.innerHTML = '<p class="slot-picker-empty">Could not load calendar.</p>';
+                });
             }
 
             function doSkipToggle(slotId) {

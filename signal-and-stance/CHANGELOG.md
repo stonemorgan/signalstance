@@ -4,6 +4,11 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-03-13
+
+### Added
+- **"Add to Calendar" button** on every draft card — assign any generated draft to an empty calendar slot without starting from the Calendar tab first. Shows a dropdown listing empty slots from the current and next week.
+
 ## [1.2.0] - 2026-03-13
 
 ### Added
