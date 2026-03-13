@@ -7,7 +7,248 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Signal &amp; Stance</h1>
-    <p>UI coming in Stage 2</p>
+    <div class="container">
+        <header>
+            <h1>Signal &amp; Stance</h1>
+            <div id="today-banner" class="today-banner hidden"></div>
+        </header>
+
+        <section class="category-section">
+            <h2>What kind of post?</h2>
+            <div class="category-grid">
+                <button class="category-btn" data-category="pattern" data-placeholder="Describe a pattern you keep seeing in your work or industry...">
+                    <strong>Pattern</strong>
+                    <span>A recurring trend you've noticed</span>
+                </button>
+                <button class="category-btn" data-category="faq" data-placeholder="What question do you keep getting asked? What's your take?">
+                    <strong>FAQ</strong>
+                    <span>A question you keep answering</span>
+                </button>
+                <button class="category-btn" data-category="noticed" data-placeholder="What did you notice recently that others might have missed?">
+                    <strong>Noticed</strong>
+                    <span>Something you observed worth sharing</span>
+                </button>
+                <button class="category-btn" data-category="hottake" data-placeholder="What's your spicy opinion? Why do you believe it?">
+                    <strong>Hot Take</strong>
+                    <span>A bold stance you're willing to defend</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="input-section">
+            <textarea id="raw-input" placeholder="Select a category above to get started..." disabled></textarea>
+            <div class="input-footer">
+                <span class="hint" id="shortcut-hint"></span>
+                <button id="generate-btn" class="btn-primary" disabled>Generate Drafts</button>
+            </div>
+        </section>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Generating your drafts...</p>
+        </div>
+
+        <div id="error" class="error-message hidden"></div>
+
+        <section id="results" class="results-section hidden">
+            <h2>Your Drafts</h2>
+            <div id="drafts-container"></div>
+            <button id="regenerate-btn" class="btn-secondary">Regenerate</button>
+        </section>
+    </div>
+
+    <script>
+        (function () {
+            // State
+            let selectedCategory = null;
+            let lastInput = '';
+            let currentDrafts = null;
+
+            // Elements
+            const todayBanner = document.getElementById('today-banner');
+            const categoryBtns = document.querySelectorAll('.category-btn');
+            const rawInput = document.getElementById('raw-input');
+            const generateBtn = document.getElementById('generate-btn');
+            const shortcutHint = document.getElementById('shortcut-hint');
+            const loading = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const results = document.getElementById('results');
+            const draftsContainer = document.getElementById('drafts-container');
+            const regenerateBtn = document.getElementById('regenerate-btn');
+
+            // Detect platform for shortcut hint
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            shortcutHint.textContent = isMac ? '⌘+Enter to generate' : 'Ctrl+Enter to generate';
+
+            // Fetch today's suggestion
+            fetch('/api/today')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.day) {
+                        todayBanner.innerHTML = '<strong>' + data.day + ' — ' + escapeHtml(data.type) + ':</strong> ' + escapeHtml(data.suggestion);
+                        todayBanner.classList.remove('hidden');
+                    }
+                })
+                .catch(() => {});
+
+            // Category selection
+            categoryBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    categoryBtns.forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    selectedCategory = btn.dataset.category;
+                    rawInput.placeholder = btn.dataset.placeholder;
+                    rawInput.disabled = false;
+                    rawInput.focus();
+                    updateGenerateBtn();
+                });
+            });
+
+            // Input change
+            rawInput.addEventListener('input', updateGenerateBtn);
+
+            // Keyboard shortcut
+            rawInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    if (!generateBtn.disabled) {
+                        doGenerate();
+                    }
+                }
+            });
+
+            // Generate button
+            generateBtn.addEventListener('click', doGenerate);
+
+            // Regenerate button
+            regenerateBtn.addEventListener('click', doGenerate);
+
+            function updateGenerateBtn() {
+                const hasInput = rawInput.value.trim().length > 0;
+                generateBtn.disabled = !(selectedCategory && hasInput);
+            }
+
+            function doGenerate() {
+                if (!selectedCategory || !rawInput.value.trim()) return;
+
+                lastInput = rawInput.value.trim();
+                showLoading();
+                hideError();
+                results.classList.add('hidden');
+
+                fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        category: selectedCategory,
+                        raw_input: lastInput
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        currentDrafts = data.drafts;
+                        renderDrafts(data.drafts);
+                        results.classList.remove('hidden');
+                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                        showError(data.error || 'Something went wrong.');
+                    }
+                })
+                .catch(err => {
+                    hideLoading();
+                    showError('Network error. Please try again.');
+                });
+            }
+
+            function renderDrafts(drafts) {
+                draftsContainer.innerHTML = '';
+                drafts.forEach(draft => {
+                    const card = document.createElement('div');
+                    card.className = 'draft-card';
+
+                    const angle = document.createElement('div');
+                    angle.className = 'draft-angle';
+                    angle.textContent = draft.angle;
+
+                    const content = document.createElement('div');
+                    content.className = 'draft-content';
+                    content.textContent = draft.content;
+
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'btn-copy';
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.addEventListener('click', () => copyDraft(draft, copyBtn));
+
+                    card.appendChild(angle);
+                    card.appendChild(content);
+                    card.appendChild(copyBtn);
+                    draftsContainer.appendChild(card);
+                });
+            }
+
+            function copyDraft(draft, btn) {
+                navigator.clipboard.writeText(draft.content).then(() => {
+                    btn.textContent = 'Copied ✓';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = 'Copy';
+                        btn.classList.remove('copied');
+                    }, 2000);
+
+                    // Track the copy
+                    fetch('/api/copy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ generation_id: draft.id })
+                    }).catch(() => {});
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const ta = document.createElement('textarea');
+                    ta.value = draft.content;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    btn.textContent = 'Copied ✓';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = 'Copy';
+                        btn.classList.remove('copied');
+                    }, 2000);
+                });
+            }
+
+            function showLoading() {
+                loading.classList.remove('hidden');
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'Generating...';
+            }
+
+            function hideLoading() {
+                loading.classList.add('hidden');
+                updateGenerateBtn();
+                generateBtn.textContent = 'Generate Drafts';
+            }
+
+            function showError(msg) {
+                errorEl.textContent = msg;
+                errorEl.classList.remove('hidden');
+            }
+
+            function hideError() {
+                errorEl.classList.add('hidden');
+            }
+
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.appendChild(document.createTextNode(str));
+                return div.innerHTML;
+            }
+        })();
+    </script>
 </body>
 </html>
