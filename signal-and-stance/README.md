@@ -120,6 +120,23 @@ The Feed Scanner pulls articles from 12 curated sources covering executive caree
 
 **Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to executive resume writing, LinkedIn optimization, ATS compliance, and senior career strategy. Articles scoring 0.7+ are considered high relevance and shown with a green badge in the Feed tab.
 
+### Carousel Generation
+
+Generate multi-slide LinkedIn carousel content from any insight. Carousels produce structured slide content that can be rendered into swipeable PDF card decks for LinkedIn.
+
+1. Call `generate_carousel_content(template_type, raw_input)` with one of three template types:
+
+**Numbered Tips (`"tips"`):** "7 Resume Mistakes Costing You Interviews" — numbered tip slides with headline + body. Best for actionable advice lists.
+
+**Before/After (`"beforeafter"`):** "Resume Bullets: Weak vs Strong" — side-by-side transformations showing weak resume text vs Dana's rewrite. Best for concrete demonstrations.
+
+**Myth vs Reality (`"mythreality"`):** "5 ATS Myths Sabotaging Your Job Search" — debunks common misconceptions with expert corrections. Best for correcting bad advice.
+
+2. The function returns a parsed dict with `title`, `subtitle`, `slides` (list of slide content dicts), and `cta`
+3. Each template enforces specific content rules: tips get 5–7 slides with headlines ≤6 words, before/after gets 4–6 pairs with metric-rich rewrites, myth/reality gets 4–6 pairs grounded in ATS/recruiter expertise
+
+**Note:** PDF rendering and frontend integration are not yet built. Currently, carousel generation produces structured content dicts ready for a future rendering step.
+
 ### Tips for Good Insights
 
 - **Short and specific beats long and vague.** "Executives are burying board experience as a single bullet point" is better than "I've been noticing resume trends lately."
@@ -163,6 +180,13 @@ Each category has its own prompt file in `prompts/`:
 - `autopilot.md` — Web search and synthesis instructions
 - `url_react.md` — URL reaction instructions
 - `feed_react.md` — Feed article reaction instructions (used by autopilot and article-specific generation)
+- `carousel_tips.md` — Numbered Tips carousel content generation
+- `carousel_beforeafter.md` — Before/After carousel content generation
+- `carousel_mythreality.md` — Myth vs Reality carousel content generation
+
+### Brand Configuration
+
+Edit `brand.py` to change carousel visual branding: colors, fonts, Dana's identity info, and slide dimensions. These settings will be used by the PDF renderer when it's built.
 
 ### Number of Drafts
 

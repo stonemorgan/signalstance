@@ -229,6 +229,187 @@ def generate_autopilot_from_feeds():
     }
 
 
+CAROUSEL_PROMPT_MAP = {
+    "tips": "prompts/carousel_tips.md",
+    "beforeafter": "prompts/carousel_beforeafter.md",
+    "mythreality": "prompts/carousel_mythreality.md",
+}
+
+
+def generate_carousel_content(template_type, raw_input):
+    """Generate structured carousel slide content from an insight.
+
+    Args:
+        template_type: "tips", "beforeafter", or "mythreality"
+        raw_input: Dana's insight/observation text
+
+    Returns:
+        dict with title, subtitle, slides list, and cta — or error dict
+    """
+    if template_type not in CAROUSEL_PROMPT_MAP:
+        return {"error": f"Unknown template type: {template_type}"}
+
+    base_prompt = load_prompt("prompts/base_system.md")
+    carousel_prompt = load_prompt(CAROUSEL_PROMPT_MAP[template_type])
+
+    system_prompt = (
+        f"{base_prompt}\n\n---\n\n"
+        f"## Carousel Content Instructions\n\n{carousel_prompt}"
+    )
+
+    user_message = (
+        f'Generate carousel slide content based on this insight:\n\n"{raw_input}"'
+    )
+
+    response = client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=MAX_TOKENS,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    raw_content = response.content[0].text
+    parsed = parse_carousel_content(template_type, raw_content)
+    parsed["_raw"] = raw_content
+    return parsed
+
+
+def parse_carousel_content(template_type, raw_content):
+    """Parse Claude's structured carousel response into a dict.
+
+    Uses line-by-line keyword matching. Returns a clear error dict if parsing fails.
+    """
+    if template_type == "tips":
+        return _parse_tips(raw_content)
+    elif template_type == "beforeafter":
+        return _parse_beforeafter(raw_content)
+    elif template_type == "mythreality":
+        return _parse_mythreality(raw_content)
+    else:
+        return {"error": f"Unknown template type: {template_type}"}
+
+
+def _extract_field(text, label):
+    """Extract the value after a label like 'TITLE:' from text.
+
+    Handles the value being on the same line or spanning until the next label.
+    """
+    pattern = re.compile(
+        rf"^{re.escape(label)}\s*(.+?)$", re.MULTILINE
+    )
+    match = pattern.search(text)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def _parse_tips(raw_content):
+    """Parse Numbered Tips carousel content."""
+    title = _extract_field(raw_content, "TITLE:")
+    subtitle = _extract_field(raw_content, "SUBTITLE:")
+    cta = _extract_field(raw_content, "CTA:")
+
+    if not title:
+        return {"error": "Could not parse TITLE from response", "_raw": raw_content}
+
+    slides = []
+    for n in range(1, 12):  # Support up to 11 tips, expect 5-7
+        headline = _extract_field(raw_content, f"TIP {n} HEADLINE:")
+        body = _extract_field(raw_content, f"TIP {n} BODY:")
+        if headline and body:
+            slides.append({
+                "number": n,
+                "headline": headline,
+                "body": body,
+            })
+        elif headline:
+            # Body might be missing but headline exists
+            slides.append({
+                "number": n,
+                "headline": headline,
+                "body": "",
+            })
+        else:
+            break  # No more tips found
+
+    if not slides:
+        return {"error": "Could not parse any tips from response", "_raw": raw_content}
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "slides": slides,
+        "cta": cta or "Follow for more executive career strategy",
+    }
+
+
+def _parse_beforeafter(raw_content):
+    """Parse Before/After carousel content."""
+    title = _extract_field(raw_content, "TITLE:")
+    subtitle = _extract_field(raw_content, "SUBTITLE:")
+    cta = _extract_field(raw_content, "CTA:")
+
+    if not title:
+        return {"error": "Could not parse TITLE from response", "_raw": raw_content}
+
+    slides = []
+    for n in range(1, 10):  # Support up to 9 pairs, expect 4-6
+        before = _extract_field(raw_content, f"PAIR {n} BEFORE:")
+        after = _extract_field(raw_content, f"PAIR {n} AFTER:")
+        note = _extract_field(raw_content, f"PAIR {n} NOTE:")
+        if before and after:
+            slides.append({
+                "before": before,
+                "after": after,
+                "note": note,
+            })
+        else:
+            break
+
+    if not slides:
+        return {"error": "Could not parse any pairs from response", "_raw": raw_content}
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "slides": slides,
+        "cta": cta or "Save this for your next resume update",
+    }
+
+
+def _parse_mythreality(raw_content):
+    """Parse Myth vs Reality carousel content."""
+    title = _extract_field(raw_content, "TITLE:")
+    subtitle = _extract_field(raw_content, "SUBTITLE:")
+    cta = _extract_field(raw_content, "CTA:")
+
+    if not title:
+        return {"error": "Could not parse TITLE from response", "_raw": raw_content}
+
+    slides = []
+    for n in range(1, 10):  # Support up to 9 myths, expect 4-6
+        myth = _extract_field(raw_content, f"MYTH {n}:")
+        reality = _extract_field(raw_content, f"REALITY {n}:")
+        if myth and reality:
+            slides.append({
+                "number": n,
+                "myth": myth,
+                "reality": reality,
+            })
+        else:
+            break
+
+    if not slides:
+        return {"error": "Could not parse any myths from response", "_raw": raw_content}
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "slides": slides,
+        "cta": cta or "Follow for more myth-busting resume strategy",
+    }
+
+
 def extract_source_info(text):
     """Extract source metadata from the response text."""
     info = {

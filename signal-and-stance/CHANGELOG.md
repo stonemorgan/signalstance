@@ -4,6 +4,21 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-03-13
+
+### Added
+- **Carousel content generation** — generate structured multi-slide LinkedIn carousel content from the same insights used for text posts. Three templates available: Numbered Tips, Before/After, and Myth vs Reality.
+- `brand.py` — centralized brand configuration with colors (primary navy, teal accent, warm gold), typography (Helvetica family), Dana's identity info, and slide dimensions (1080×1080)
+- `prompts/carousel_tips.md` — Numbered Tips carousel prompt with strict `TIP N HEADLINE:` / `TIP N BODY:` output format, 5–7 tips, headlines ≤6 words, body ≤30 words, number required in title
+- `prompts/carousel_beforeafter.md` — Before/After carousel prompt with `PAIR N BEFORE:` / `PAIR N AFTER:` / `PAIR N NOTE:` format, 4–6 pairs, realistic weak-to-strong resume transformations
+- `prompts/carousel_mythreality.md` — Myth vs Reality carousel prompt with `MYTH N:` / `REALITY N:` format, 4–6 pairs, real misconceptions grounded in ATS/recruiter expertise
+- `generate_carousel_content(template_type, raw_input)` in engine.py — loads base system prompt + carousel-specific prompt, calls the API, returns parsed content dict
+- `parse_carousel_content(template_type, raw_content)` in engine.py — parses Claude's structured text response into template-specific dicts using line-by-line keyword matching
+- `_extract_field(text, label)` helper for reliable single-line field extraction from structured text
+- `_parse_tips()`, `_parse_beforeafter()`, `_parse_mythreality()` — template-specific parsers returning structured dicts with title, subtitle, slides list, and CTA
+- `CAROUSEL_PROMPT_MAP` dict mapping template types to prompt file paths
+- `test_carousel.py` — test script validating all 3 templates with realistic inputs, content rules, and parsing reliability
+
 ## [1.5.0] - 2026-03-13
 
 ### Added
