@@ -4,6 +4,25 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-03-13
+
+### Added
+- **PDF carousel renderer** — generates branded 1080×1080 multi-page PDF carousels from structured content produced by the carousel content engine
+- `carousel_renderer.py` with full rendering pipeline: cover slide, template-specific content slides, and call-to-action closing slide
+- Three visual templates matching the content templates:
+  - **Numbered Tips** — large teal watermark number, alternating white/off-white backgrounds, headline + body layout
+  - **Before/After** — red/green comparison boxes with checkmark/cross markers, optional annotation notes
+  - **Myth vs Reality** — curly-quoted myths, green "REALITY" pill divider label, alternating backgrounds
+- `render_carousel(parsed_content, template_type, output_path)` orchestrator — validates input, renders all slides, saves PDF, returns `{success, path, file_size, page_count}`
+- Cover slide renderer — navy background, gold accent bar, 64pt title, subtitle, author footer
+- CTA slide renderer — author credentials block, teal rounded CTA box, LinkedIn URL
+- `draw_wrapped_text()` helper using ReportLab Paragraph + Frame for proper text wrapping with XML escaping
+- `draw_footer()` and `draw_accent_line()` shared decorators across content slides
+- All colors and fonts sourced from `brand.py` for consistency
+- `reportlab>=4.0` added to requirements.txt
+- `generated_carousels/` added to .gitignore
+- Auto-creates `generated_carousels/` output directory on first render
+
 ## [1.6.0] - 2026-03-13
 
 ### Added

@@ -135,7 +135,23 @@ Generate multi-slide LinkedIn carousel content from any insight. Carousels produ
 2. The function returns a parsed dict with `title`, `subtitle`, `slides` (list of slide content dicts), and `cta`
 3. Each template enforces specific content rules: tips get 5–7 slides with headlines ≤6 words, before/after gets 4–6 pairs with metric-rich rewrites, myth/reality gets 4–6 pairs grounded in ATS/recruiter expertise
 
-**Note:** PDF rendering and frontend integration are not yet built. Currently, carousel generation produces structured content dicts ready for a future rendering step.
+### PDF Carousel Rendering
+
+Render structured carousel content into branded 1080×1080 multi-page PDFs using `carousel_renderer.py`.
+
+```python
+from carousel_renderer import render_carousel
+
+result = render_carousel(parsed_content, "tips")
+# result = {"success": True, "path": "generated_carousels/carousel_tips_1234.pdf", "file_size": 7611, "page_count": 7}
+```
+
+Each PDF contains:
+- **Cover slide** — navy background with gold accent bar, title (64pt), subtitle, and author footer
+- **Content slides** — template-specific layouts matching the three content templates (tips with watermark numbers, before/after with red/green comparison boxes, myth/reality with pill dividers)
+- **CTA slide** — author credentials, LinkedIn URL, and call-to-action in a teal rounded box
+
+All visual styling (colors, fonts, identity) is sourced from `brand.py`. PDFs are saved to `generated_carousels/` by default.
 
 ### Tips for Good Insights
 
@@ -186,7 +202,7 @@ Each category has its own prompt file in `prompts/`:
 
 ### Brand Configuration
 
-Edit `brand.py` to change carousel visual branding: colors, fonts, Dana's identity info, and slide dimensions. These settings will be used by the PDF renderer when it's built.
+Edit `brand.py` to change carousel visual branding: colors, fonts, Dana's identity info, and slide dimensions. These settings are used by `carousel_renderer.py` when generating PDF carousels.
 
 ### Number of Drafts
 
