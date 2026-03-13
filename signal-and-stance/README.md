@@ -49,7 +49,7 @@ python app.py
 
 **URL Reaction:** Paste a link to an article or post that sparked a thought. The tool reads the content and generates your professional reaction — not a summary.
 
-**Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool searches current career/hiring news and generates posts based on what it finds.
+**Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool draws from your curated RSS feed pool — picking the highest-relevance unused article and generating Dana's professional reaction. If no feed articles are available, it falls back to web search automatically.
 
 3. Review the 3 draft variations
 4. Click "Copy" on the best one, or click **"Add to Calendar"** to assign the draft to an empty calendar slot
@@ -90,8 +90,11 @@ The Feed Scanner pulls articles from 12 curated sources covering executive caree
 - `PUT /api/feeds/<id>` — update feed properties (`enabled`, `name`, `category`, `weight`)
 - `DELETE /api/feeds/<id>` — remove a feed and its articles
 - `GET /api/articles` — browse articles (query params: `limit`, `min_relevance`, `category`, `unused_only`)
+- `POST /api/articles/<id>/generate` — generate 3 post drafts from a specific article
 - `POST /api/articles/<id>/dismiss` — dismiss an article from the pool
 - `POST /api/feeds/refresh` — fetch all feeds and score new articles
+
+**Autopilot integration:** The autopilot (`POST /api/generate/autopilot`) now checks the feed pool first. The response includes a `method` field ("feed" or "web_search") and a `source_article` object when a feed article was used.
 
 **Auto-refresh:** On startup, feeds are refreshed in the background if they haven't been fetched in over 6 hours.
 
@@ -141,6 +144,7 @@ Each category has its own prompt file in `prompts/`:
 - `category_hottake.md` — "Hot take" framing
 - `autopilot.md` — Web search and synthesis instructions
 - `url_react.md` — URL reaction instructions
+- `feed_react.md` — Feed article reaction instructions (used by autopilot and article-specific generation)
 
 ### Number of Drafts
 
@@ -182,7 +186,7 @@ This can happen if two instances of the app are running. Stop all instances and 
 
 ### Autopilot returns "Nothing compelling found"
 
-This is intentional — the quality gate prevents weak content. Try again in a few hours when new news may be available, or switch to manual mode.
+This can happen when the autopilot falls back to web search (no unused feed articles available) and finds nothing compelling. Try refreshing feeds first (`POST /api/feeds/refresh`), or switch to manual mode.
 
 ### URL reaction fails
 

@@ -4,6 +4,20 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-13
+
+### Added
+- **Feed-powered autopilot** — "Generate an idea for me" now draws from the curated RSS feed pool instead of relying on web search. Picks the highest-scoring unused article and generates 3 drafts reacting to it with Dana's expertise.
+- `prompts/feed_react.md` — new prompt for generating LinkedIn posts from RSS article titles and summaries. Posts stand alone, cite data naturally, and narrow general trends to Dana's executive niche.
+- `generate_from_feed_article(article)` in engine.py — generates 3 post drafts from a feed article dict using the base voice profile + feed reaction prompt
+- `generate_autopilot_from_feeds()` in engine.py — upgraded autopilot flow: tries high-relevance articles (score >= 0.7) first, falls back to medium-relevance (>= 0.5), then falls back to web search
+- `POST /api/articles/<id>/generate` — one-click content generation from a specific feed article. Saves insight, marks article as used, returns standard draft response.
+- `feed_react` added as a valid insight category
+- Autopilot API response now includes `method` field ("feed" or "web_search") and `source_article` object with article title, URL, feed name, relevance score, and relevance reason
+
+### Changed
+- `POST /api/generate/autopilot` now calls `generate_autopilot_from_feeds()` instead of `generate_autopilot()` directly. Response is a backward-compatible superset — existing fields (`success`, `insight_id`, `drafts`, `source_summary`, `source_url`) are preserved, with new `method` and `source_article` fields added.
+
 ## [1.3.0] - 2026-03-13
 
 ### Added

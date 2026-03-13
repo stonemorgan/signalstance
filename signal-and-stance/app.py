@@ -21,6 +21,7 @@ from database import (
     get_week_stats,
     init_db,
     mark_article_dismissed,
+    mark_article_used,
     mark_generation_copied,
     save_generation,
     save_insight,
@@ -28,12 +29,18 @@ from database import (
     update_feed,
     update_slot_status,
 )
-from engine import generate_autopilot, generate_from_url, generate_posts
+from engine import (
+    generate_autopilot,
+    generate_autopilot_from_feeds,
+    generate_from_feed_article,
+    generate_from_url,
+    generate_posts,
+)
 from feed_scanner import fetch_feed, refresh_and_score
 
 app = Flask(__name__)
 
-VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake", "autopilot", "url_react"}
+VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake", "autopilot", "url_react", "feed_react"}
 API_KEY_MISSING = not ANTHROPIC_API_KEY
 
 
@@ -117,33 +124,70 @@ def generate_autopilot_route():
         return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
 
     try:
-        drafts, source_info = generate_autopilot()
+        result = generate_autopilot_from_feeds()
+        method = result["method"]
+        drafts = result["drafts"]
+        source_article = result["source_article"]
+
+        # ── Feed-sourced autopilot ──
+        if method == "feed":
+            if not drafts:
+                return jsonify({
+                    "success": False,
+                    "error": "Feed article was found but draft generation failed.",
+                }), 500
+
+            raw_input_text = source_article.get("title", "auto-generated from feed")
+            source_url = source_article.get("url")
+            insight_id = save_insight("autopilot", raw_input_text, source_url)
+
+            drafts_response = []
+            for i, draft in enumerate(drafts, start=1):
+                gen_id = save_generation(insight_id, i, draft["content"])
+                drafts_response.append({
+                    "id": gen_id,
+                    "draft_number": i,
+                    "content": draft["content"],
+                    "angle": draft.get("angle", ""),
+                })
+
+            return jsonify({
+                "success": True,
+                "insight_id": insight_id,
+                "method": "feed",
+                "source_article": source_article,
+                "source_summary": source_article.get("title", ""),
+                "source_url": source_url,
+                "drafts": drafts_response,
+            })
+
+        # ── Web search fallback ──
+        source_info = result["source_info"]
 
         # Handle "nothing found" case
         if drafts is None:
-            if source_info.get("nothing_found"):
+            if source_info and source_info.get("nothing_found"):
                 return jsonify({
                     "success": True,
                     "nothing_found": True,
+                    "method": "web_search",
+                    "source_article": None,
                     "source_summary": source_info["source_summary"],
                 })
-            # URL error or other issue
             return jsonify({
                 "success": False,
-                "error": source_info.get("source_summary", "Could not generate autopilot content."),
+                "error": (source_info or {}).get("source_summary", "Could not generate autopilot content."),
             }), 400
 
         # Determine category from source info (default to 'noticed')
-        category = source_info.get("category", "noticed")
+        category = (source_info or {}).get("category", "noticed")
         if category not in VALID_CATEGORIES:
             category = "autopilot"
 
-        # Save insight
-        raw_input_text = source_info.get("insight") or source_info.get("source_summary", "auto-generated")
-        source_url = source_info.get("source_url")
+        raw_input_text = (source_info or {}).get("insight") or (source_info or {}).get("source_summary", "auto-generated")
+        source_url = (source_info or {}).get("source_url")
         insight_id = save_insight("autopilot", raw_input_text, source_url)
 
-        # Save drafts and build response
         drafts_response = []
         for i, draft in enumerate(drafts, start=1):
             gen_id = save_generation(insight_id, i, draft["content"])
@@ -151,13 +195,15 @@ def generate_autopilot_route():
                 "id": gen_id,
                 "draft_number": i,
                 "content": draft["content"],
-                "angle": draft["angle"],
+                "angle": draft.get("angle", ""),
             })
 
         return jsonify({
             "success": True,
             "insight_id": insight_id,
-            "source_summary": source_info.get("source_summary", ""),
+            "method": "web_search",
+            "source_article": None,
+            "source_summary": (source_info or {}).get("source_summary", ""),
             "source_url": source_url,
             "drafts": drafts_response,
         })
@@ -527,6 +573,55 @@ def articles_list():
         return jsonify({"success": True, "articles": articles})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/articles/<int:article_id>/generate", methods=["POST"])
+def articles_generate(article_id):
+    if API_KEY_MISSING:
+        return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
+
+    try:
+        article = get_article_by_id(article_id)
+        if not article:
+            return jsonify({"success": False, "error": "Article not found"}), 404
+
+        drafts = generate_from_feed_article(article)
+        if not drafts:
+            return jsonify({"success": False, "error": "Draft generation failed."}), 500
+
+        # Save insight and generations
+        insight_id = save_insight("feed_react", article["title"], article["url"])
+
+        drafts_response = []
+        for i, draft in enumerate(drafts, start=1):
+            gen_id = save_generation(insight_id, i, draft["content"])
+            drafts_response.append({
+                "id": gen_id,
+                "draft_number": i,
+                "content": draft["content"],
+                "angle": draft.get("angle", ""),
+            })
+
+        # Mark the article as used
+        mark_article_used(article_id)
+
+        return jsonify({
+            "success": True,
+            "insight_id": insight_id,
+            "method": "feed",
+            "source_article": {
+                "id": article["id"],
+                "title": article["title"],
+                "url": article["url"],
+                "feed_name": article.get("feed_name", ""),
+                "relevance_score": article.get("relevance_score"),
+                "relevance_reason": article.get("relevance_reason", ""),
+            },
+            "drafts": drafts_response,
+        })
+
+    except Exception as e:
+        return _handle_api_error(e)
 
 
 @app.route("/api/articles/<int:article_id>/dismiss", methods=["POST"])

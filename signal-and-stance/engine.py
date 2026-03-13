@@ -4,6 +4,8 @@ import re
 import anthropic
 
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, MAX_TOKENS
+from database import get_recent_articles, mark_article_used
+from feeds import FEED_CATEGORIES
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -131,6 +133,100 @@ def generate_from_url(url):
     source_info["source_url"] = url
     drafts = parse_drafts(full_text)
     return drafts, source_info
+
+
+def generate_from_feed_article(article):
+    """Generate 3 post drafts reacting to a feed article.
+
+    Args:
+        article: dict with title, summary, url, feed_name, feed_category,
+                 relevance_reason, and optionally weight.
+
+    Returns:
+        list of draft dicts with 'content' and 'angle' keys.
+    """
+    base_prompt = load_prompt("prompts/base_system.md")
+    feed_react_prompt = load_prompt("prompts/feed_react.md")
+
+    system_prompt = (
+        f"{base_prompt}\n\n---\n\n"
+        f"## Feed Reaction Instructions\n\n{feed_react_prompt}"
+    )
+
+    category_desc = FEED_CATEGORIES.get(
+        article.get("feed_category", ""), ""
+    )
+
+    user_message = (
+        f"Generate LinkedIn posts reacting to this article from Dana's curated feed.\n\n"
+        f"**Article title:** {article.get('title', '')}\n\n"
+        f"**Summary:** {article.get('summary', 'No summary available.')}\n\n"
+        f"**Source publication:** {article.get('feed_name', 'Unknown')}\n\n"
+        f"**Feed category:** {article.get('feed_category', 'general')} — {category_desc}\n\n"
+        f"**Why this is relevant:** {article.get('relevance_reason', 'Matches Dana niche.')}"
+    )
+
+    response = client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=MAX_TOKENS,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    full_response = response.content[0].text
+    drafts = parse_drafts(full_response)
+    return drafts
+
+
+def generate_autopilot_from_feeds():
+    """Generate content from the curated feed pool, falling back to web search.
+
+    Returns:
+        dict with 'method' ('feed' or 'web_search'), 'source_article' (or None),
+        'drafts' (list), and 'source_info' (for web_search compatibility).
+    """
+    # Try high-relevance articles first (score >= 0.7)
+    candidates = get_recent_articles(limit=10, min_relevance=0.7, unused_only=True)
+
+    if not candidates:
+        # Fall back to medium-relevance (score >= 0.5)
+        candidates = get_recent_articles(limit=10, min_relevance=0.5, unused_only=True)
+
+    if candidates:
+        # Pick the best candidate: highest (relevance_score * weight), most recent as tiebreaker
+        best = max(
+            candidates,
+            key=lambda a: (
+                (a.get("relevance_score") or 0) * (a.get("weight") or 1.0),
+                a.get("published_at") or "",
+            ),
+        )
+
+        drafts = generate_from_feed_article(best)
+        mark_article_used(best["id"])
+
+        return {
+            "method": "feed",
+            "source_article": {
+                "id": best["id"],
+                "title": best["title"],
+                "url": best["url"],
+                "feed_name": best.get("feed_name", ""),
+                "relevance_score": best.get("relevance_score"),
+                "relevance_reason": best.get("relevance_reason", ""),
+            },
+            "drafts": drafts,
+            "source_info": None,
+        }
+
+    # No feed candidates — fall back to web search autopilot
+    drafts, source_info = generate_autopilot()
+    return {
+        "method": "web_search",
+        "source_article": None,
+        "drafts": drafts,
+        "source_info": source_info,
+    }
 
 
 def extract_source_info(text):
