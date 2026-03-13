@@ -1,4 +1,6 @@
+import os
 import sqlite3
+
 from config import DATABASE_PATH
 
 
@@ -9,8 +11,9 @@ def get_connection():
 
 
 def init_db():
+    schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
     conn = get_connection()
-    with open("schema.sql", "r") as f:
+    with open(schema_path, "r") as f:
         conn.executescript(f.read())
     conn.close()
 
@@ -27,13 +30,25 @@ def save_insight(category, raw_input, source_url=None):
     return insight_id
 
 
-def get_insights(limit=50):
+def get_insights(unused_only=False, limit=50, offset=0):
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM insights ORDER BY created_at DESC LIMIT ?", (limit,)
-    ).fetchall()
+    if unused_only:
+        rows = conn.execute(
+            "SELECT * FROM insights WHERE used = 0 ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM insights ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+    # Get total count
+    if unused_only:
+        total = conn.execute("SELECT COUNT(*) FROM insights WHERE used = 0").fetchone()[0]
+    else:
+        total = conn.execute("SELECT COUNT(*) FROM insights").fetchone()[0]
     conn.close()
-    return [dict(row) for row in rows]
+    return [dict(row) for row in rows], total
 
 
 def mark_insight_used(insight_id):
@@ -77,16 +92,38 @@ def mark_generation_copied(generation_id):
     conn.close()
 
 
-def get_generation_history(limit=50):
+def get_generation_history(limit=30):
+    """Get recent generation sessions grouped by insight."""
     conn = get_connection()
-    rows = conn.execute(
-        """SELECT g.id, g.insight_id, g.draft_number, g.content, g.copied, g.created_at,
-                  i.category, i.raw_input
-           FROM generations g
-           JOIN insights i ON g.insight_id = i.id
-           ORDER BY g.created_at DESC
+    # Get recent insights that have generations
+    insights = conn.execute(
+        """SELECT i.id, i.category, i.raw_input, i.source_url, i.created_at, i.used
+           FROM insights i
+           WHERE EXISTS (SELECT 1 FROM generations g WHERE g.insight_id = i.id)
+           ORDER BY i.created_at DESC
            LIMIT ?""",
         (limit,),
     ).fetchall()
+
+    history = []
+    for insight in insights:
+        drafts = conn.execute(
+            """SELECT id, draft_number, content, copied, created_at
+               FROM generations
+               WHERE insight_id = ?
+               ORDER BY draft_number""",
+            (insight["id"],),
+        ).fetchall()
+
+        history.append({
+            "insight_id": insight["id"],
+            "category": insight["category"],
+            "raw_input": insight["raw_input"],
+            "source_url": insight["source_url"],
+            "generated_at": insight["created_at"],
+            "used": insight["used"],
+            "drafts": [dict(d) for d in drafts],
+        })
+
     conn.close()
-    return [dict(row) for row in rows]
+    return history
