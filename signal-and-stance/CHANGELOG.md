@@ -4,6 +4,30 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-03-13
+
+### Added
+- **Feed tab** — third tab in the UI (`[ Create ] [ Calendar ] [ Feed ]`) for browsing and acting on curated RSS articles directly in the browser
+- **Article feed view** — scrollable list of article cards showing title (clickable, opens source URL), feed name, category tag, relative time, truncated summary, relevance score badge (green/amber/gray), and relevance reason
+- **"Generate Post From This" button** on each article card — generates 3 drafts from the article, switches to the Create tab, and displays source info (article title, feed name, relevance score) above the drafts
+- **"Dismiss" button** on each article card — removes the article with a smooth fade-out animation, no confirmation needed
+- **Feed controls** — "Last refreshed" timestamp with "Refresh Feeds" button, category filter dropdown (10 categories), "High relevance only" checkbox, and live article count
+- **Refresh loading state** — shows "Scanning feeds..." during refresh (30-60 seconds), then displays results summary ("Found 47 new articles, 8 highly relevant") before auto-hiding
+- **Feed management view** — accessible via "Manage Feeds" link; shows all feeds with enable/disable toggle, name, category tag, URL, last fetched time, article count, error status, and remove button with confirmation
+- **Add feed form** — inline form with URL, Name, and Category dropdown; immediately fetches the feed on add and shows success/failure feedback
+- **Autopilot status line** in Create tab — shows "Drawing from N curated articles · Last refreshed [time]" or "No curated articles available · Will search the web" below the autopilot button
+- **Feed source info in results** — when autopilot or "Generate Post From This" uses a feed article, shows "Based on: [linked title] / via [feed name] · Relevance: [score]" above the drafts
+- Empty states for no articles ("Click Refresh Feeds to scan your curated sources") and no matching filters ("Try broadening your search")
+- `feed_react` category tag styling in CSS
+- Feed category tag colors for all 10 categories (leadership, careers, executive_careers, hr_recruiting, labor_data, linkedin, hr_tech, compensation, workplace, business_news)
+
+### Changed
+- Tab switching now handles three tabs (create, calendar, feed) with mutual exclusion
+- `showSource()` function accepts optional `sourceArticle` parameter for feed-sourced results
+- `doAutopilot()` detects `method: "feed"` in response and displays feed-specific source info
+- `formatCategory()` now includes `feed_react` mapping
+- Autopilot status line refreshes after generation and feed refresh
+
 ## [1.4.0] - 2026-03-13
 
 ### Added

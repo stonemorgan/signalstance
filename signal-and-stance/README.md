@@ -49,7 +49,7 @@ python app.py
 
 **URL Reaction:** Paste a link to an article or post that sparked a thought. The tool reads the content and generates your professional reaction — not a summary.
 
-**Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool draws from your curated RSS feed pool — picking the highest-relevance unused article and generating Dana's professional reaction. If no feed articles are available, it falls back to web search automatically.
+**Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool draws from your curated RSS feed pool — picking the highest-relevance unused article and generating Dana's professional reaction. If no feed articles are available, it falls back to web search automatically. A status line below the button shows how many curated articles are available.
 
 3. Review the 3 draft variations
 4. Click "Copy" on the best one, or click **"Add to Calendar"** to assign the draft to an empty calendar slot
@@ -79,6 +79,24 @@ The Calendar tab shows your week laid out with content slots for Monday through 
 
 Slot statuses flow in this order: **empty** → **draft ready** → **scheduled** → **published**. Any slot can also be marked as **skipped**.
 
+### Feed Tab
+
+The Feed tab lets you browse curated articles and generate content from them directly in the browser.
+
+1. Switch to the **Feed** tab to see recent articles from your curated RSS sources
+2. Use the **category filter** and **"High relevance only"** checkbox to narrow the list
+3. Click **"Refresh Feeds"** to scan all sources for new articles (takes 30-60 seconds)
+4. Click an **article title** to open the original source in a new tab
+5. Click **"Generate Post From This"** on any article — switches to the Create tab with 3 drafts and source info displayed
+6. Click **"Dismiss"** to remove articles you're not interested in
+
+**Feed Management:** Click "Manage Feeds" at the bottom of the article list to:
+
+- Enable/disable feeds with the toggle checkbox
+- See feed status (last fetched, article count, errors)
+- Remove feeds (with confirmation)
+- Add new feeds with the URL/Name/Category form at the bottom
+
 ### RSS Feed Scanner
 
 The Feed Scanner pulls articles from 12 curated sources covering executive careers, HR/recruiting, labor market data, leadership, and workplace trends. Articles are scored for relevance to Dana's niche using Claude.
@@ -98,9 +116,9 @@ The Feed Scanner pulls articles from 12 curated sources covering executive caree
 
 **Auto-refresh:** On startup, feeds are refreshed in the background if they haven't been fetched in over 6 hours.
 
-**Managing feeds:** Edit `feeds.py` to change the default feed list. New feeds added via the API are stored in the database and persist across restarts. Feed URLs are tested on add — if a feed returns an error, it's saved but flagged.
+**Managing feeds:** Edit `feeds.py` to change the default feed list. New feeds added via the API or the Feed tab's management view are stored in the database and persist across restarts. Feed URLs are tested on add — if a feed returns an error, it's saved but flagged.
 
-**Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to executive resume writing, LinkedIn optimization, ATS compliance, and senior career strategy. Articles scoring 0.7+ are considered high relevance.
+**Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to executive resume writing, LinkedIn optimization, ATS compliance, and senior career strategy. Articles scoring 0.7+ are considered high relevance and shown with a green badge in the Feed tab.
 
 ### Tips for Good Insights
 

@@ -43,6 +43,7 @@
         <div class="tab-bar">
             <button class="tab-btn active" data-tab="create" id="tab-btn-create">Create</button>
             <button class="tab-btn" data-tab="calendar" id="tab-btn-calendar">Calendar</button>
+            <button class="tab-btn" data-tab="feed" id="tab-btn-feed">Feed</button>
         </div>
 
         <div id="tab-create">
@@ -91,6 +92,7 @@
             <div class="autopilot-wrapper">
                 <button id="autopilot-btn" class="btn-autopilot">Generate an idea for me</button>
                 <p class="autopilot-hint">Finds current career news and writes a post for you</p>
+                <p class="autopilot-status" id="autopilot-status"></p>
             </div>
         </section>
 
@@ -147,6 +149,63 @@
             </div>
             <div id="cal-days"></div>
         </div><!-- end tab-calendar -->
+
+        <div id="tab-feed" class="hidden">
+            <!-- Article Feed View -->
+            <div id="feed-articles-view">
+                <div class="feed-controls">
+                    <div class="feed-refresh-row">
+                        <span class="feed-refresh-left" id="feed-last-refreshed"></span>
+                        <button class="btn-refresh" id="feed-refresh-btn">Refresh Feeds</button>
+                    </div>
+                    <div id="feed-refresh-status" class="feed-refresh-status hidden"></div>
+                    <div class="feed-filter-row">
+                        <select id="feed-category-filter">
+                            <option value="">All categories</option>
+                            <option value="leadership">Leadership</option>
+                            <option value="careers">Careers</option>
+                            <option value="executive_careers">Executive Careers</option>
+                            <option value="hr_recruiting">HR / Recruiting</option>
+                            <option value="labor_data">Labor Data</option>
+                            <option value="linkedin">LinkedIn</option>
+                            <option value="hr_tech">HR Tech</option>
+                            <option value="compensation">Compensation</option>
+                            <option value="workplace">Workplace</option>
+                            <option value="business_news">Business News</option>
+                        </select>
+                        <label><input type="checkbox" id="feed-relevance-filter"> High relevance only</label>
+                        <span class="feed-article-count" id="feed-article-count"></span>
+                    </div>
+                </div>
+                <div id="feed-articles-list"></div>
+                <button class="feed-mgmt-link" id="feed-manage-link">Manage Feeds</button>
+            </div>
+
+            <!-- Feed Management View -->
+            <div id="feed-manage-view" class="hidden">
+                <h2>Manage Feeds</h2>
+                <div id="feed-manage-list"></div>
+                <div class="feed-add-form" id="feed-add-form">
+                    <input type="url" id="feed-add-url" placeholder="Feed URL">
+                    <input type="text" id="feed-add-name" placeholder="Name">
+                    <select id="feed-add-category">
+                        <option value="leadership">Leadership</option>
+                        <option value="careers" selected>Careers</option>
+                        <option value="executive_careers">Executive Careers</option>
+                        <option value="hr_recruiting">HR / Recruiting</option>
+                        <option value="labor_data">Labor Data</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="hr_tech">HR Tech</option>
+                        <option value="compensation">Compensation</option>
+                        <option value="workplace">Workplace</option>
+                        <option value="business_news">Business News</option>
+                    </select>
+                    <button class="btn-add-feed" id="feed-add-btn">Add Feed</button>
+                    <div class="feed-add-feedback" id="feed-add-feedback"></div>
+                </div>
+                <button class="feed-mgmt-link" id="feed-back-link">&larr; Back to articles</button>
+            </div>
+        </div><!-- end tab-feed -->
         {% endif %}
     </div>
 
@@ -428,11 +487,16 @@
                     }
                     if (data.success) {
                         currentDrafts = data.drafts;
-                        showSource(data.source_summary, data.source_url, 'autopilot');
+                        if (data.method === 'feed' && data.source_article) {
+                            showSource(data.source_summary, data.source_url, 'feed', data.source_article);
+                        } else {
+                            showSource(data.source_summary, data.source_url, 'autopilot');
+                        }
                         renderDrafts(data.drafts);
                         results.classList.remove('hidden');
                         results.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         refreshSideSections();
+                        loadAutopilotStatus();
                     } else {
                         showError(data.error || 'Something went wrong.');
                     }
@@ -444,10 +508,16 @@
                 });
             }
 
-            function showSource(summary, url, type) {
-                if (!summary && !url) return;
+            function showSource(summary, url, type, sourceArticle) {
+                if (!summary && !url && !sourceArticle) return;
                 let html = '';
-                if (type === 'autopilot') {
+                if (type === 'feed' && sourceArticle) {
+                    html = '<strong>Based on:</strong> <a href="' + escapeHtml(sourceArticle.url || '') + '" target="_blank" rel="noopener">' + escapeHtml(sourceArticle.title || summary || '') + '</a>';
+                    html += '<br>via ' + escapeHtml(sourceArticle.feed_name || '');
+                    if (sourceArticle.relevance_score != null) {
+                        html += ' &middot; Relevance: ' + Number(sourceArticle.relevance_score).toFixed(2);
+                    }
+                } else if (type === 'autopilot') {
                     html = '<strong>Based on:</strong> ' + escapeHtml(summary || '');
                     if (url) {
                         html += ' \u2014 <a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">Source</a>';
@@ -829,7 +899,8 @@
                     'noticed': 'Noticed',
                     'hottake': 'Hot Take',
                     'autopilot': 'Autopilot',
-                    'url_react': 'URL React'
+                    'url_react': 'URL React',
+                    'feed_react': 'Feed React'
                 };
                 return map[cat] || cat;
             }
@@ -862,22 +933,32 @@
             const tabBtns = document.querySelectorAll('.tab-btn');
             const tabCreate = document.getElementById('tab-create');
             const tabCalendar = document.getElementById('tab-calendar');
+            const tabFeed = document.getElementById('tab-feed');
             let calendarLoaded = false;
             let calendarWeekStart = null; // ISO date string of current week's Monday
+            let feedLoaded = false;
 
             function switchToTab(tabName) {
                 tabBtns.forEach(b => {
                     b.classList.remove('active');
                     if (b.dataset.tab === tabName) b.classList.add('active');
                 });
+                tabCreate.classList.add('hidden');
+                tabCalendar.classList.add('hidden');
+                tabFeed.classList.add('hidden');
+
                 if (tabName === 'create') {
                     tabCreate.classList.remove('hidden');
-                    tabCalendar.classList.add('hidden');
-                } else {
-                    tabCreate.classList.add('hidden');
+                } else if (tabName === 'calendar') {
                     tabCalendar.classList.remove('hidden');
                     fetchCalendar(calendarWeekStart || 'current');
                     calendarLoaded = true;
+                } else if (tabName === 'feed') {
+                    tabFeed.classList.remove('hidden');
+                    if (!feedLoaded) {
+                        loadFeedArticles();
+                        feedLoaded = true;
+                    }
                 }
             }
 
@@ -1631,6 +1712,487 @@
                 })
                 .catch(() => {});
             }
+
+            // ── Feed Tab ────────────────────────────────────────────────────
+
+            const feedArticlesList = document.getElementById('feed-articles-list');
+            const feedCategoryFilter = document.getElementById('feed-category-filter');
+            const feedRelevanceFilter = document.getElementById('feed-relevance-filter');
+            const feedArticleCount = document.getElementById('feed-article-count');
+            const feedRefreshBtn = document.getElementById('feed-refresh-btn');
+            const feedLastRefreshed = document.getElementById('feed-last-refreshed');
+            const feedRefreshStatus = document.getElementById('feed-refresh-status');
+            const feedManageLink = document.getElementById('feed-manage-link');
+            const feedBackLink = document.getElementById('feed-back-link');
+            const feedArticlesView = document.getElementById('feed-articles-view');
+            const feedManageView = document.getElementById('feed-manage-view');
+            const feedManageList = document.getElementById('feed-manage-list');
+            const feedAddBtn = document.getElementById('feed-add-btn');
+            const feedAddFeedback = document.getElementById('feed-add-feedback');
+            const autopilotStatus = document.getElementById('autopilot-status');
+
+            const feedCatLabels = {
+                'leadership': 'Leadership',
+                'careers': 'Careers',
+                'executive_careers': 'Exec Careers',
+                'hr_recruiting': 'HR/Recruiting',
+                'labor_data': 'Labor Data',
+                'linkedin': 'LinkedIn',
+                'hr_tech': 'HR Tech',
+                'compensation': 'Compensation',
+                'workplace': 'Workplace',
+                'business_news': 'Business News'
+            };
+
+            // Toggle between article view and manage view
+            feedManageLink.addEventListener('click', () => {
+                feedArticlesView.classList.add('hidden');
+                feedManageView.classList.remove('hidden');
+                loadFeedManagement();
+            });
+            feedBackLink.addEventListener('click', () => {
+                feedManageView.classList.add('hidden');
+                feedArticlesView.classList.remove('hidden');
+                loadFeedArticles();
+            });
+
+            // Filters
+            feedCategoryFilter.addEventListener('change', () => loadFeedArticles());
+            feedRelevanceFilter.addEventListener('change', () => loadFeedArticles());
+
+            // Refresh
+            feedRefreshBtn.addEventListener('click', doFeedRefresh);
+
+            function loadFeedArticles() {
+                feedArticlesList.innerHTML = '<p class="loading-text">Loading articles...</p>';
+                const params = new URLSearchParams({ limit: '50', unused_only: 'true' });
+                const cat = feedCategoryFilter.value;
+                if (cat) params.set('category', cat);
+                if (feedRelevanceFilter.checked) params.set('min_relevance', '0.7');
+
+                fetch('/api/articles?' + params.toString())
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) {
+                            feedArticlesList.innerHTML = '<p class="empty-state">Could not load articles.</p>';
+                            return;
+                        }
+                        const articles = data.articles || [];
+                        feedArticleCount.textContent = articles.length + ' article' + (articles.length !== 1 ? 's' : '');
+
+                        if (articles.length === 0) {
+                            if (cat || feedRelevanceFilter.checked) {
+                                feedArticlesList.innerHTML = '<p class="empty-state">No articles match the current filters. Try broadening your search or refreshing feeds.</p>';
+                            } else {
+                                feedArticlesList.innerHTML = '<p class="empty-state">No articles yet. Click "Refresh Feeds" to scan your curated sources for the first time.</p>';
+                            }
+                            return;
+                        }
+
+                        renderFeedArticles(articles);
+                    })
+                    .catch(() => {
+                        feedArticlesList.innerHTML = '<p class="empty-state">Could not load articles.</p>';
+                    });
+
+                // Update last refreshed time
+                fetch('/api/feeds')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) return;
+                        const feeds = data.feeds || [];
+                        const times = feeds.map(f => f.last_fetched_at).filter(Boolean);
+                        if (times.length > 0) {
+                            const latest = times.reduce((a, b) => a > b ? a : b);
+                            feedLastRefreshed.textContent = 'Last refreshed: ' + relativeTime(latest);
+                        } else {
+                            feedLastRefreshed.textContent = 'Never refreshed';
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            function renderFeedArticles(articles) {
+                feedArticlesList.innerHTML = '';
+                articles.forEach(article => {
+                    const card = document.createElement('div');
+                    card.className = 'article-card';
+                    card.dataset.articleId = article.id;
+
+                    // Title
+                    const titleLink = document.createElement('a');
+                    titleLink.className = 'article-title';
+                    titleLink.href = article.url;
+                    titleLink.target = '_blank';
+                    titleLink.rel = 'noopener';
+                    titleLink.textContent = article.title;
+                    card.appendChild(titleLink);
+
+                    // Meta line
+                    const meta = document.createElement('div');
+                    meta.className = 'article-meta';
+                    meta.appendChild(document.createTextNode(article.feed_name || ''));
+
+                    const catTag = document.createElement('span');
+                    catTag.className = 'feed-cat-tag feed-cat-' + (article.feed_category || '');
+                    catTag.textContent = feedCatLabels[article.feed_category] || article.feed_category || '';
+                    meta.appendChild(catTag);
+
+                    if (article.published_at) {
+                        meta.appendChild(document.createTextNode(relativeTime(article.published_at)));
+                    }
+                    card.appendChild(meta);
+
+                    // Summary
+                    if (article.summary) {
+                        const summary = document.createElement('div');
+                        summary.className = 'article-summary';
+                        summary.textContent = article.summary;
+                        card.appendChild(summary);
+                    }
+
+                    // Relevance
+                    if (article.relevance_score != null) {
+                        const relRow = document.createElement('div');
+                        relRow.className = 'article-relevance';
+
+                        const badge = document.createElement('span');
+                        const score = article.relevance_score;
+                        badge.className = 'relevance-badge ' +
+                            (score >= 0.7 ? 'relevance-high' : score >= 0.5 ? 'relevance-medium' : 'relevance-low');
+                        badge.textContent = score.toFixed(2);
+                        relRow.appendChild(badge);
+
+                        if (article.relevance_reason) {
+                            const reason = document.createElement('span');
+                            reason.className = 'relevance-reason';
+                            reason.textContent = article.relevance_reason;
+                            relRow.appendChild(reason);
+                        }
+                        card.appendChild(relRow);
+                    }
+
+                    // Actions
+                    const actions = document.createElement('div');
+                    actions.className = 'article-actions';
+
+                    const genBtn = document.createElement('button');
+                    genBtn.className = 'btn-generate-article';
+                    genBtn.textContent = 'Generate Post From This';
+                    genBtn.addEventListener('click', () => doGenerateFromArticle(article.id, genBtn));
+                    actions.appendChild(genBtn);
+
+                    const dismissBtn = document.createElement('button');
+                    dismissBtn.className = 'btn-dismiss';
+                    dismissBtn.textContent = 'Dismiss';
+                    dismissBtn.addEventListener('click', () => doDismissArticle(article.id, card));
+                    actions.appendChild(dismissBtn);
+
+                    card.appendChild(actions);
+                    feedArticlesList.appendChild(card);
+                });
+            }
+
+            function doGenerateFromArticle(articleId, btn) {
+                btn.disabled = true;
+                btn.textContent = 'Generating...';
+
+                // Switch to Create tab and show loading
+                switchToTab('create');
+                showLoading('Generating posts from article...');
+                hideError();
+                hideSource();
+                results.classList.add('hidden');
+                lastGenerationMode = 'autopilot';
+
+                fetch('/api/articles/' + articleId + '/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    hideLoading();
+                    btn.disabled = false;
+                    btn.textContent = 'Generate Post From This';
+
+                    if (data.success) {
+                        currentDrafts = data.drafts;
+                        if (data.source_article) {
+                            showSource(data.source_article.title, data.source_article.url, 'feed', data.source_article);
+                        }
+                        renderDrafts(data.drafts);
+                        results.classList.remove('hidden');
+                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        refreshSideSections();
+                        loadAutopilotStatus();
+                        // Refresh feed list to reflect used status
+                        feedLoaded = false;
+                    } else {
+                        showError(data.error || 'Could not generate from this article.');
+                    }
+                })
+                .catch(() => {
+                    hideLoading();
+                    btn.disabled = false;
+                    btn.textContent = 'Generate Post From This';
+                    showError('Network error. Check your connection and try again.');
+                });
+            }
+
+            function doDismissArticle(articleId, card) {
+                card.classList.add('dismissing');
+                fetch('/api/articles/' + articleId + '/dismiss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        setTimeout(() => {
+                            card.remove();
+                            // Update count
+                            const remaining = feedArticlesList.querySelectorAll('.article-card').length;
+                            feedArticleCount.textContent = remaining + ' article' + (remaining !== 1 ? 's' : '');
+                            if (remaining === 0) {
+                                feedArticlesList.innerHTML = '<p class="empty-state">No articles match the current filters. Try broadening your search or refreshing feeds.</p>';
+                            }
+                        }, 300);
+                    } else {
+                        card.classList.remove('dismissing');
+                    }
+                })
+                .catch(() => {
+                    card.classList.remove('dismissing');
+                });
+            }
+
+            function doFeedRefresh() {
+                feedRefreshBtn.disabled = true;
+                feedRefreshBtn.textContent = 'Scanning...';
+                feedRefreshStatus.textContent = 'Scanning feeds... This may take 30\u201360 seconds.';
+                feedRefreshStatus.classList.remove('hidden');
+
+                fetch('/api/feeds/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    feedRefreshBtn.disabled = false;
+                    feedRefreshBtn.textContent = 'Refresh Feeds';
+
+                    if (data.success) {
+                        const fr = data.fetch_results || {};
+                        const sr = data.scoring_results || {};
+                        feedRefreshStatus.textContent = 'Found ' + (fr.new_articles || 0) + ' new articles, ' + (sr.high_relevance || 0) + ' highly relevant';
+                        if (fr.failed > 0) {
+                            feedRefreshStatus.textContent += ' (' + fr.failed + ' feed' + (fr.failed !== 1 ? 's' : '') + ' failed)';
+                        }
+                        setTimeout(() => feedRefreshStatus.classList.add('hidden'), 6000);
+                        loadFeedArticles();
+                        loadAutopilotStatus();
+                    } else {
+                        feedRefreshStatus.textContent = 'Refresh failed: ' + (data.error || 'Unknown error');
+                        setTimeout(() => feedRefreshStatus.classList.add('hidden'), 5000);
+                    }
+                })
+                .catch(() => {
+                    feedRefreshBtn.disabled = false;
+                    feedRefreshBtn.textContent = 'Refresh Feeds';
+                    feedRefreshStatus.textContent = 'Refresh failed. Check your connection.';
+                    setTimeout(() => feedRefreshStatus.classList.add('hidden'), 5000);
+                });
+            }
+
+            // ── Feed Management ─────────────────────────────────────────────
+
+            function loadFeedManagement() {
+                feedManageList.innerHTML = '<p class="loading-text">Loading feeds...</p>';
+                fetch('/api/feeds')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) {
+                            feedManageList.innerHTML = '<p class="empty-state">Could not load feeds.</p>';
+                            return;
+                        }
+                        renderFeedManagement(data.feeds || []);
+                    })
+                    .catch(() => {
+                        feedManageList.innerHTML = '<p class="empty-state">Could not load feeds.</p>';
+                    });
+            }
+
+            function renderFeedManagement(feeds) {
+                feedManageList.innerHTML = '';
+                if (feeds.length === 0) {
+                    feedManageList.innerHTML = '<p class="empty-state">No feeds configured.</p>';
+                    return;
+                }
+                feeds.forEach(feed => {
+                    const row = document.createElement('div');
+                    row.className = 'feed-row' + (feed.enabled ? '' : ' disabled');
+
+                    const toggle = document.createElement('input');
+                    toggle.type = 'checkbox';
+                    toggle.className = 'feed-toggle';
+                    toggle.checked = feed.enabled;
+                    toggle.addEventListener('change', () => {
+                        fetch('/api/feeds/' + feed.id, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ enabled: toggle.checked })
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success) {
+                                row.classList.toggle('disabled', !toggle.checked);
+                            } else {
+                                toggle.checked = !toggle.checked;
+                            }
+                        })
+                        .catch(() => { toggle.checked = !toggle.checked; });
+                    });
+                    row.appendChild(toggle);
+
+                    const info = document.createElement('div');
+                    info.className = 'feed-info';
+
+                    const nameEl = document.createElement('div');
+                    nameEl.className = 'feed-name';
+                    nameEl.textContent = feed.name + ' ';
+                    const catTag = document.createElement('span');
+                    catTag.className = 'feed-cat-tag feed-cat-' + (feed.category || '');
+                    catTag.textContent = feedCatLabels[feed.category] || feed.category || '';
+                    nameEl.appendChild(catTag);
+                    info.appendChild(nameEl);
+
+                    const urlEl = document.createElement('div');
+                    urlEl.className = 'feed-url';
+                    urlEl.textContent = feed.url;
+                    info.appendChild(urlEl);
+
+                    const statusEl = document.createElement('div');
+                    statusEl.className = 'feed-status';
+                    const parts = [];
+                    if (feed.last_fetched_at) parts.push('Last fetched: ' + relativeTime(feed.last_fetched_at));
+                    else parts.push('Never fetched');
+                    if (feed.article_count != null) parts.push(feed.article_count + ' articles');
+                    statusEl.textContent = parts.join(' \u00B7 ');
+                    info.appendChild(statusEl);
+
+                    if (feed.last_error) {
+                        const errEl = document.createElement('div');
+                        errEl.className = 'feed-error';
+                        errEl.textContent = feed.last_error;
+                        info.appendChild(errEl);
+                    }
+
+                    row.appendChild(info);
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'feed-remove-btn';
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.addEventListener('click', () => {
+                        if (confirm('Remove this feed and all its articles?')) {
+                            fetch('/api/feeds/' + feed.id, { method: 'DELETE' })
+                                .then(r => r.json())
+                                .then(d => { if (d.success) loadFeedManagement(); })
+                                .catch(() => {});
+                        }
+                    });
+                    row.appendChild(removeBtn);
+
+                    feedManageList.appendChild(row);
+                });
+            }
+
+            // Add Feed
+            feedAddBtn.addEventListener('click', () => {
+                const url = document.getElementById('feed-add-url').value.trim();
+                const name = document.getElementById('feed-add-name').value.trim();
+                const category = document.getElementById('feed-add-category').value;
+
+                if (!url || !name) {
+                    feedAddFeedback.textContent = 'URL and Name are required.';
+                    feedAddFeedback.style.color = 'var(--error-text)';
+                    return;
+                }
+
+                feedAddBtn.disabled = true;
+                feedAddBtn.textContent = 'Adding...';
+                feedAddFeedback.textContent = '';
+
+                fetch('/api/feeds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, name, category })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    feedAddBtn.disabled = false;
+                    feedAddBtn.textContent = 'Add Feed';
+                    if (data.success) {
+                        feedAddFeedback.style.color = 'var(--accent)';
+                        const fr = data.fetch_result || {};
+                        if (fr.success) {
+                            feedAddFeedback.textContent = 'Added! Fetched ' + (fr.new_articles || 0) + ' articles.';
+                        } else {
+                            feedAddFeedback.textContent = 'Added, but initial fetch failed: ' + (fr.error || 'unknown error');
+                            feedAddFeedback.style.color = 'var(--tag-noticed-text)';
+                        }
+                        document.getElementById('feed-add-url').value = '';
+                        document.getElementById('feed-add-name').value = '';
+                        loadFeedManagement();
+                    } else {
+                        feedAddFeedback.style.color = 'var(--error-text)';
+                        feedAddFeedback.textContent = data.error || 'Could not add feed.';
+                    }
+                })
+                .catch(() => {
+                    feedAddBtn.disabled = false;
+                    feedAddBtn.textContent = 'Add Feed';
+                    feedAddFeedback.style.color = 'var(--error-text)';
+                    feedAddFeedback.textContent = 'Network error.';
+                });
+            });
+
+            // ── Autopilot Status Line ───────────────────────────────────────
+
+            function loadAutopilotStatus() {
+                fetch('/api/articles?unused_only=true&min_relevance=0.7&limit=1')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) return;
+                        const count = (data.articles || []).length;
+
+                        // Also check feeds for last refresh time
+                        fetch('/api/feeds')
+                            .then(r => r.json())
+                            .then(fdata => {
+                                if (!fdata.success) return;
+                                const stats = fdata.stats || {};
+                                const feeds = fdata.feeds || [];
+                                const times = feeds.map(f => f.last_fetched_at).filter(Boolean);
+                                const lastRefreshed = times.length > 0 ? relativeTime(times.reduce((a, b) => a > b ? a : b)) : null;
+
+                                const highCount = stats.high_relevance || 0;
+                                const unused = highCount; // approximate
+
+                                if (count > 0) {
+                                    let statusText = 'Drawing from ' + (stats.high_relevance || count) + ' curated article' + ((stats.high_relevance || count) !== 1 ? 's' : '');
+                                    if (lastRefreshed) statusText += ' \u00B7 Last refreshed ' + lastRefreshed;
+                                    autopilotStatus.textContent = statusText;
+                                } else {
+                                    autopilotStatus.textContent = 'No curated articles available \u00B7 Will search the web';
+                                }
+                            })
+                            .catch(() => {});
+                    })
+                    .catch(() => {});
+            }
+
+            // Load autopilot status on page load
+            loadAutopilotStatus();
         })();
     </script>
     {% endif %}

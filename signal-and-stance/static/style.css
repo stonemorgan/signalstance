@@ -1416,6 +1416,419 @@ textarea::placeholder {
     text-align: center;
 }
 
+/* Feed Tab — Controls */
+.feed-controls {
+    margin-bottom: 1.25rem;
+}
+
+.feed-refresh-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.feed-refresh-left {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.btn-refresh {
+    padding: 0.45rem 1rem;
+    background: var(--bg-card);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-refresh:hover:not(:disabled) {
+    background: var(--accent-bg);
+    border-color: var(--accent);
+}
+
+.btn-refresh:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.feed-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.feed-filter-row select {
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.feed-filter-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.feed-filter-row label input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+.feed-article-count {
+    font-size: 0.8rem;
+    color: var(--text-faint);
+    margin-left: auto;
+}
+
+.feed-refresh-status {
+    padding: 0.6rem 1rem;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--accent-text);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+/* Feed Tab — Article Cards */
+.article-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 0.75rem;
+    transition: box-shadow 0.15s ease, opacity 0.3s ease;
+}
+
+.article-card:hover {
+    box-shadow: 0 2px 8px var(--card-shadow);
+}
+
+.article-card.dismissing {
+    opacity: 0;
+    transform: translateX(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.article-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+    line-height: 1.4;
+    display: block;
+    margin-bottom: 0.35rem;
+}
+
+.article-title:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.article-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.article-summary {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 0.6rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.article-relevance {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.relevance-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.relevance-high {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.relevance-medium {
+    background: var(--tag-noticed-bg);
+    color: var(--tag-noticed-text);
+}
+
+.relevance-low {
+    background: var(--bg-disabled);
+    color: var(--text-faint);
+}
+
+.relevance-reason {
+    font-size: 0.8rem;
+    color: var(--text-faint);
+    font-style: italic;
+}
+
+.article-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-generate-article {
+    padding: 0.35rem 0.9rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-generate-article:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.btn-generate-article:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-dismiss {
+    padding: 0.35rem 0.7rem;
+    background: none;
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-dismiss:hover {
+    color: var(--text-muted);
+    border-color: var(--border-hover);
+}
+
+/* Feed Tab — Feed Category Tags */
+.feed-cat-tag {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    background: var(--bg-disabled);
+    color: var(--text-muted);
+}
+
+.feed-cat-leadership { background: var(--tag-pattern-bg); color: var(--tag-pattern-text); }
+.feed-cat-careers { background: var(--tag-faq-bg); color: var(--tag-faq-text); }
+.feed-cat-executive_careers { background: var(--tag-url-bg); color: var(--tag-url-text); }
+.feed-cat-hr_recruiting { background: var(--tag-noticed-bg); color: var(--tag-noticed-text); }
+.feed-cat-labor_data { background: var(--tag-autopilot-bg); color: var(--tag-autopilot-text); }
+.feed-cat-linkedin { background: var(--tag-faq-bg); color: var(--tag-faq-text); }
+.feed-cat-hr_tech { background: var(--tag-hottake-bg); color: var(--tag-hottake-text); }
+.feed-cat-compensation { background: var(--tag-noticed-bg); color: var(--tag-noticed-text); }
+.feed-cat-workplace { background: var(--tag-pattern-bg); color: var(--tag-pattern-text); }
+.feed-cat-business_news { background: var(--bg-disabled); color: var(--text-muted); }
+
+/* Feed Tab — Management View */
+.feed-mgmt-link {
+    display: block;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0.75rem 0;
+    margin-top: 0.5rem;
+    transition: color 0.15s;
+    background: none;
+    border: none;
+    font-family: inherit;
+    width: 100%;
+}
+
+.feed-mgmt-link:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.feed-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-row);
+}
+
+.feed-row:last-of-type {
+    border-bottom: none;
+}
+
+.feed-row.disabled {
+    opacity: 0.5;
+}
+
+.feed-toggle {
+    margin-top: 0.2rem;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.feed-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.feed-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.feed-url {
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    word-break: break-all;
+}
+
+.feed-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}
+
+.feed-error {
+    font-size: 0.75rem;
+    color: var(--error-text);
+}
+
+.feed-remove-btn {
+    padding: 0.25rem 0.5rem;
+    background: none;
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    align-self: center;
+}
+
+.feed-remove-btn:hover {
+    color: var(--error-text);
+    border-color: var(--error-border);
+}
+
+/* Feed Tab — Add Feed Form */
+.feed-add-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+}
+
+.feed-add-form input,
+.feed-add-form select {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.feed-add-form input {
+    flex: 1;
+    min-width: 120px;
+}
+
+.feed-add-form select {
+    min-width: 100px;
+}
+
+.btn-add-feed {
+    padding: 0.4rem 0.9rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-add-feed:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.btn-add-feed:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.feed-add-feedback {
+    width: 100%;
+    font-size: 0.8rem;
+    padding: 0.35rem 0;
+}
+
+/* Autopilot Status Line */
+.autopilot-status {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    text-align: center;
+}
+
+/* Feed source info in results */
+.tag-feed_react {
+    background: var(--tag-autopilot-bg);
+    color: var(--tag-autopilot-text);
+}
+
 /* Hidden utility */
 .hidden {
     display: none !important;
