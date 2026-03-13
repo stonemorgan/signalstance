@@ -75,6 +75,44 @@
 
         <section class="input-section">
             <textarea id="raw-input" placeholder="Select a category above to get started..." disabled></textarea>
+
+            <div class="output-format-selector" id="output-format-selector" style="display:flex;align-items:center;gap:1.2rem;margin:0.75rem 0;padding:0.5rem 0;">
+                <span style="font-weight:600;color:var(--text-secondary);font-size:0.9rem;">Output:</span>
+                <label style="display:flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.9rem;">
+                    <input type="radio" name="output-format" value="text" checked id="format-text"> Text Post
+                </label>
+                <label style="display:flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.9rem;">
+                    <input type="radio" name="output-format" value="carousel" id="format-carousel"> Carousel
+                </label>
+            </div>
+
+            <div id="template-picker" class="hidden" style="margin-bottom:0.75rem;padding:0.75rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);">
+                <span style="font-weight:600;font-size:0.85rem;color:var(--text-secondary);display:block;margin-bottom:0.5rem;">Template:</span>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;padding:0.4rem 0.5rem;border-radius:6px;transition:background 0.15s;" class="template-option">
+                        <input type="radio" name="carousel-template" value="tips" checked style="margin-top:3px;">
+                        <div>
+                            <strong style="font-size:0.9rem;">Numbered Tips</strong>
+                            <span style="display:block;font-size:0.8rem;color:var(--text-muted);">"7 mistakes", "5 strategies" &mdash; one tip per slide</span>
+                        </div>
+                    </label>
+                    <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;padding:0.4rem 0.5rem;border-radius:6px;transition:background 0.15s;" class="template-option">
+                        <input type="radio" name="carousel-template" value="beforeafter" style="margin-top:3px;">
+                        <div>
+                            <strong style="font-size:0.9rem;">Before / After</strong>
+                            <span style="display:block;font-size:0.8rem;color:var(--text-muted);">Weak vs strong examples side by side</span>
+                        </div>
+                    </label>
+                    <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;padding:0.4rem 0.5rem;border-radius:6px;transition:background 0.15s;" class="template-option">
+                        <input type="radio" name="carousel-template" value="mythreality" style="margin-top:3px;">
+                        <div>
+                            <strong style="font-size:0.9rem;">Myth vs Reality</strong>
+                            <span style="display:block;font-size:0.8rem;color:var(--text-muted);">Debunk common misconceptions</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
             <div class="input-footer">
                 <span class="hint" id="shortcut-hint"></span>
                 <button id="generate-btn" class="btn-primary" disabled>Generate Drafts</button>
@@ -242,9 +280,11 @@
             let selectedCategory = null;
             let lastInput = '';
             let currentDrafts = null;
+            let currentCarousel = null;
+            let currentCarouselInsightId = null;
             let insightBankLoaded = false;
             let historyLoaded = false;
-            let lastGenerationMode = null; // 'manual', 'url', 'autopilot'
+            let lastGenerationMode = null; // 'manual', 'url', 'autopilot', 'carousel'
             let forSlotId = null;
             let forSlotDay = null;
             let forSlotDate = null;
@@ -287,6 +327,29 @@
             const historyHeader = document.getElementById('history-header');
             const historyBody = document.getElementById('history-body');
             const historyList = document.getElementById('history-list');
+
+            // Output format selector
+            const formatText = document.getElementById('format-text');
+            const formatCarousel = document.getElementById('format-carousel');
+            const templatePicker = document.getElementById('template-picker');
+
+            function getOutputFormat() {
+                return formatCarousel.checked ? 'carousel' : 'text';
+            }
+
+            function getSelectedTemplate() {
+                const checked = document.querySelector('input[name="carousel-template"]:checked');
+                return checked ? checked.value : 'tips';
+            }
+
+            formatText.addEventListener('change', () => {
+                templatePicker.classList.add('hidden');
+                updateGenerateBtn();
+            });
+            formatCarousel.addEventListener('change', () => {
+                templatePicker.classList.remove('hidden');
+                updateGenerateBtn();
+            });
 
             // Detect platform for shortcut hint
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -345,6 +408,11 @@
                 }
             });
 
+            // Template picker change also updates button text
+            document.querySelectorAll('input[name="carousel-template"]').forEach(r => {
+                r.addEventListener('change', updateGenerateBtn);
+            });
+
             // Autopilot button
             autopilotBtn.addEventListener('click', doAutopilot);
 
@@ -381,6 +449,8 @@
                 // Update button text based on what's filled
                 if (hasUrl) {
                     generateBtn.textContent = 'Generate Reaction';
+                } else if (getOutputFormat() === 'carousel') {
+                    generateBtn.textContent = 'Generate Carousel';
                 } else {
                     generateBtn.textContent = 'Generate Drafts';
                 }
@@ -397,6 +467,12 @@
                 }
 
                 if (!selectedCategory || !text) return;
+
+                // Carousel mode
+                if (getOutputFormat() === 'carousel') {
+                    doCarouselGenerate(text);
+                    return;
+                }
 
                 lastInput = text;
                 lastGenerationMode = 'manual';
@@ -418,6 +494,7 @@
                     hideLoading();
                     if (data.success) {
                         currentDrafts = data.drafts;
+                        currentCarousel = null;
                         renderDrafts(data.drafts);
                         results.classList.remove('hidden');
                         results.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -427,6 +504,45 @@
                     }
                 })
                 .catch(err => {
+                    hideLoading();
+                    showError('Network error. Check your internet connection and try again.');
+                });
+            }
+
+            function doCarouselGenerate(text) {
+                lastInput = text;
+                lastGenerationMode = 'carousel';
+                const templateType = getSelectedTemplate();
+                showLoading('Generating carousel slides...');
+                hideError();
+                hideSource();
+                results.classList.add('hidden');
+
+                fetch('/api/generate/carousel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        category: selectedCategory,
+                        raw_input: text,
+                        template_type: templateType,
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        currentCarousel = data.carousel;
+                        currentCarouselInsightId = data.insight_id;
+                        currentDrafts = null;
+                        renderCarouselResult(data.carousel, data.insight_id, data.generation_id);
+                        results.classList.remove('hidden');
+                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        refreshSideSections();
+                    } else {
+                        showError(data.error || 'Carousel generation failed.');
+                    }
+                })
+                .catch(() => {
                     hideLoading();
                     showError('Network error. Check your internet connection and try again.');
                 });
@@ -542,6 +658,8 @@
 
             function renderDrafts(drafts) {
                 draftsContainer.innerHTML = '';
+                results.querySelector('h2').textContent = 'Your Drafts';
+                regenerateBtn.classList.remove('hidden');
                 drafts.forEach(draft => {
                     const card = document.createElement('div');
                     card.className = 'draft-card';
@@ -620,6 +738,156 @@
                         body: JSON.stringify({ generation_id: generationId })
                     }).catch(() => {});
                 }
+            }
+
+            const TEMPLATE_LABELS = {
+                tips: 'Numbered Tips',
+                beforeafter: 'Before / After',
+                mythreality: 'Myth vs Reality'
+            };
+
+            function renderCarouselResult(carousel, insightId, generationId) {
+                draftsContainer.innerHTML = '';
+                results.querySelector('h2').textContent = 'Your Carousel';
+                regenerateBtn.classList.add('hidden');
+
+                const card = document.createElement('div');
+                card.className = 'draft-card';
+                card.style.padding = '1.25rem';
+
+                // Title
+                const titleEl = document.createElement('div');
+                titleEl.style.cssText = 'font-size:1.15rem;font-weight:700;margin-bottom:0.25rem;color:var(--text-primary);';
+                titleEl.textContent = 'Carousel: \u201c' + escapeHtml(carousel.title) + '\u201d';
+                card.appendChild(titleEl);
+
+                // Meta
+                const metaEl = document.createElement('div');
+                metaEl.style.cssText = 'font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;';
+                metaEl.textContent = (TEMPLATE_LABELS[carousel.template_type] || carousel.template_type) + ' \u00B7 ' + carousel.slide_count + ' slides';
+                card.appendChild(metaEl);
+
+                // Slide preview strip
+                const stripLabel = document.createElement('div');
+                stripLabel.style.cssText = 'font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.4rem;';
+                stripLabel.textContent = 'Slides preview:';
+                card.appendChild(stripLabel);
+
+                const strip = document.createElement('div');
+                strip.style.cssText = 'display:flex;gap:6px;overflow-x:auto;margin-bottom:1rem;padding-bottom:4px;';
+
+                function makeSlideBox(label) {
+                    const box = document.createElement('div');
+                    box.style.cssText = 'min-width:64px;height:64px;border-radius:6px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--text-muted);text-align:center;padding:4px;flex-shrink:0;';
+                    box.textContent = label;
+                    return box;
+                }
+
+                strip.appendChild(makeSlideBox('Cover'));
+                const slides = carousel.slides_preview || [];
+                slides.forEach((s, i) => {
+                    if (carousel.template_type === 'tips') {
+                        strip.appendChild(makeSlideBox('Tip ' + (i + 1)));
+                    } else if (carousel.template_type === 'beforeafter') {
+                        strip.appendChild(makeSlideBox('Pair ' + (i + 1)));
+                    } else {
+                        strip.appendChild(makeSlideBox('Myth ' + (i + 1)));
+                    }
+                });
+                strip.appendChild(makeSlideBox('CTA'));
+                card.appendChild(strip);
+
+                // Slide content details
+                const detailLabel = document.createElement('div');
+                detailLabel.style.cssText = 'font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.4rem;';
+                detailLabel.textContent = 'Slide details:';
+                card.appendChild(detailLabel);
+
+                const detailList = document.createElement('div');
+                detailList.style.cssText = 'font-size:0.85rem;color:var(--text-primary);margin-bottom:1rem;line-height:1.6;';
+                slides.forEach((s, i) => {
+                    const item = document.createElement('div');
+                    item.style.cssText = 'margin-bottom:0.4rem;padding-left:0.25rem;';
+                    if (carousel.template_type === 'tips') {
+                        item.innerHTML = '<strong>' + (i + 1) + '. ' + escapeHtml(s.headline || '') + '</strong> \u2014 ' + escapeHtml(s.body || '');
+                    } else if (carousel.template_type === 'beforeafter') {
+                        item.innerHTML = '<strong>' + (i + 1) + '. Before:</strong> ' + escapeHtml(s.before || '') + '<br>&nbsp;&nbsp;&nbsp;<strong>After:</strong> ' + escapeHtml(s.after || '');
+                    } else {
+                        item.innerHTML = '<strong>' + (i + 1) + '. Myth:</strong> ' + escapeHtml(s.myth || '') + '<br>&nbsp;&nbsp;&nbsp;<strong>Reality:</strong> ' + escapeHtml(s.reality || '');
+                    }
+                    detailList.appendChild(item);
+                });
+                card.appendChild(detailList);
+
+                // Action buttons
+                const btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex;gap:0.75rem;flex-wrap:wrap;';
+
+                const dlBtn = document.createElement('a');
+                dlBtn.href = carousel.pdf_url;
+                dlBtn.download = '';
+                dlBtn.className = 'btn-primary';
+                dlBtn.style.cssText = 'text-decoration:none;display:inline-block;text-align:center;';
+                dlBtn.textContent = 'Download PDF';
+                btnRow.appendChild(dlBtn);
+
+                const regenBtn = document.createElement('button');
+                regenBtn.className = 'btn-secondary';
+                regenBtn.textContent = 'Regenerate Content';
+                regenBtn.addEventListener('click', () => {
+                    doCarouselRegenerate(insightId, carousel.template_type);
+                });
+                btnRow.appendChild(regenBtn);
+
+                if (forSlotId && forSlotDay) {
+                    const useBtn = document.createElement('button');
+                    useBtn.className = 'btn-use-slot';
+                    useBtn.textContent = 'Use for ' + forSlotDay + ' \u2197';
+                    useBtn.addEventListener('click', () => assignToSlot(forSlotId, generationId));
+                    btnRow.appendChild(useBtn);
+                } else {
+                    const calBtn = document.createElement('button');
+                    calBtn.className = 'btn-use-slot';
+                    calBtn.textContent = 'Add to Calendar \u2197';
+                    calBtn.addEventListener('click', () => showSlotPicker(calBtn, generationId));
+                    btnRow.appendChild(calBtn);
+                }
+
+                card.appendChild(btnRow);
+                draftsContainer.appendChild(card);
+            }
+
+            function doCarouselRegenerate(insightId, templateType) {
+                showLoading('Regenerating carousel content...');
+                hideError();
+                results.classList.add('hidden');
+
+                fetch('/api/generate/carousel/regenerate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        insight_id: insightId,
+                        template_type: templateType,
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        currentCarousel = data.carousel;
+                        currentCarouselInsightId = data.insight_id;
+                        renderCarouselResult(data.carousel, data.insight_id, data.generation_id);
+                        results.classList.remove('hidden');
+                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        refreshSideSections();
+                    } else {
+                        showError(data.error || 'Carousel regeneration failed.');
+                    }
+                })
+                .catch(() => {
+                    hideLoading();
+                    showError('Network error. Check your connection and try again.');
+                });
             }
 
             function showLoading(text) {
@@ -785,6 +1053,10 @@
             function renderHistory(historyItems) {
                 historyList.innerHTML = '';
                 historyItems.forEach(item => {
+                    // Check if any draft is a carousel
+                    const carouselDraft = item.drafts.find(d => d.carousel);
+                    const isCarousel = !!carouselDraft;
+
                     const row = document.createElement('div');
                     row.className = 'history-row';
 
@@ -795,33 +1067,57 @@
                     const left = document.createElement('div');
                     left.className = 'history-left';
 
-                    const date = document.createElement('span');
-                    date.className = 'history-date';
-                    date.textContent = formatDate(item.generated_at);
+                    const dateEl = document.createElement('span');
+                    dateEl.className = 'history-date';
+                    dateEl.textContent = formatDate(item.generated_at);
 
                     const tag = document.createElement('span');
                     tag.className = 'category-tag tag-' + item.category;
                     tag.textContent = formatCategory(item.category);
 
-                    const text = document.createElement('span');
-                    text.className = 'history-text';
-                    const truncated = item.raw_input.length > 80
-                        ? item.raw_input.substring(0, 80) + '...'
-                        : item.raw_input;
-                    text.textContent = truncated;
-
-                    left.appendChild(date);
+                    left.appendChild(dateEl);
                     left.appendChild(tag);
-                    left.appendChild(text);
+
+                    if (isCarousel) {
+                        const carouselTag = document.createElement('span');
+                        carouselTag.className = 'category-tag';
+                        carouselTag.style.cssText = 'background:var(--accent);color:#fff;';
+                        carouselTag.textContent = 'Carousel';
+                        left.appendChild(carouselTag);
+
+                        const text = document.createElement('span');
+                        text.className = 'history-text';
+                        text.textContent = carouselDraft.carousel.title + ' (' + carouselDraft.carousel.slide_count + ' slides)';
+                        left.appendChild(text);
+                    } else {
+                        const text = document.createElement('span');
+                        text.className = 'history-text';
+                        const truncated = item.raw_input.length > 80
+                            ? item.raw_input.substring(0, 80) + '...'
+                            : item.raw_input;
+                        text.textContent = truncated;
+                        left.appendChild(text);
+                    }
 
                     const right = document.createElement('div');
                     right.className = 'history-right';
 
-                    const anyCopied = item.drafts.some(d => d.copied);
-                    const statusBadge = document.createElement('span');
-                    statusBadge.className = anyCopied ? 'used-badge' : 'unused-badge';
-                    statusBadge.textContent = anyCopied ? '\u2713 Used' : '\u2014';
-                    right.appendChild(statusBadge);
+                    if (isCarousel && carouselDraft.carousel.file_exists) {
+                        const dlLink = document.createElement('a');
+                        dlLink.href = carouselDraft.carousel.pdf_url;
+                        dlLink.download = '';
+                        dlLink.style.cssText = 'font-size:0.8rem;color:var(--accent);text-decoration:none;margin-right:0.5rem;';
+                        dlLink.textContent = 'Download PDF';
+                        right.appendChild(dlLink);
+                    }
+
+                    if (!isCarousel) {
+                        const anyCopied = item.drafts.some(d => d.copied);
+                        const statusBadge = document.createElement('span');
+                        statusBadge.className = anyCopied ? 'used-badge' : 'unused-badge';
+                        statusBadge.textContent = anyCopied ? '\u2713 Used' : '\u2014';
+                        right.appendChild(statusBadge);
+                    }
 
                     const expandBtn = document.createElement('span');
                     expandBtn.className = 'expand-btn';
@@ -835,34 +1131,68 @@
                     const body = document.createElement('div');
                     body.className = 'history-row-body hidden';
 
-                    item.drafts.forEach(draft => {
-                        const draftEl = document.createElement('div');
-                        draftEl.className = 'history-draft';
+                    if (isCarousel) {
+                        const cd = carouselDraft.carousel;
+                        const info = document.createElement('div');
+                        info.className = 'history-draft';
+                        info.style.cssText = 'padding:0.75rem;';
 
-                        const draftHeader = document.createElement('div');
-                        draftHeader.className = 'history-draft-header';
-                        draftHeader.innerHTML = '<strong>Draft ' + draft.draft_number + '</strong>';
-                        if (draft.copied) {
-                            draftHeader.innerHTML += ' <span class="used-badge">\u2713 Copied</span>';
+                        const titleLine = document.createElement('div');
+                        titleLine.style.cssText = 'font-weight:700;margin-bottom:0.3rem;';
+                        titleLine.textContent = cd.title;
+                        info.appendChild(titleLine);
+
+                        const metaLine = document.createElement('div');
+                        metaLine.style.cssText = 'font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem;';
+                        metaLine.textContent = (TEMPLATE_LABELS[cd.template_type] || cd.template_type) + ' \u00B7 ' + cd.slide_count + ' slides';
+                        info.appendChild(metaLine);
+
+                        if (cd.file_exists) {
+                            const dlBtn = document.createElement('a');
+                            dlBtn.href = cd.pdf_url;
+                            dlBtn.download = '';
+                            dlBtn.className = 'btn-primary';
+                            dlBtn.style.cssText = 'text-decoration:none;display:inline-block;font-size:0.85rem;';
+                            dlBtn.textContent = 'Download PDF';
+                            info.appendChild(dlBtn);
+                        } else {
+                            const gone = document.createElement('div');
+                            gone.style.cssText = 'font-size:0.8rem;color:var(--text-muted);font-style:italic;';
+                            gone.textContent = 'PDF file no longer available';
+                            info.appendChild(gone);
                         }
 
-                        const draftContent = document.createElement('div');
-                        draftContent.className = 'draft-content';
-                        draftContent.textContent = draft.content;
+                        body.appendChild(info);
+                    } else {
+                        item.drafts.forEach(draft => {
+                            const draftEl = document.createElement('div');
+                            draftEl.className = 'history-draft';
 
-                        const copyBtn = document.createElement('button');
-                        copyBtn.className = 'btn-copy';
-                        copyBtn.textContent = 'Copy';
-                        copyBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            copyDraft(draft, copyBtn);
+                            const draftHeader = document.createElement('div');
+                            draftHeader.className = 'history-draft-header';
+                            draftHeader.innerHTML = '<strong>Draft ' + draft.draft_number + '</strong>';
+                            if (draft.copied) {
+                                draftHeader.innerHTML += ' <span class="used-badge">\u2713 Copied</span>';
+                            }
+
+                            const draftContent = document.createElement('div');
+                            draftContent.className = 'draft-content';
+                            draftContent.textContent = draft.content;
+
+                            const copyBtn = document.createElement('button');
+                            copyBtn.className = 'btn-copy';
+                            copyBtn.textContent = 'Copy';
+                            copyBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                copyDraft(draft, copyBtn);
+                            });
+
+                            draftEl.appendChild(draftHeader);
+                            draftEl.appendChild(draftContent);
+                            draftEl.appendChild(copyBtn);
+                            body.appendChild(draftEl);
                         });
-
-                        draftEl.appendChild(draftHeader);
-                        draftEl.appendChild(draftContent);
-                        draftEl.appendChild(copyBtn);
-                        body.appendChild(draftEl);
-                    });
+                    }
 
                     // Toggle expand
                     header.addEventListener('click', () => {

@@ -4,6 +4,27 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-03-13
+
+### Added
+- **Carousel output format in UI** — "Output: Text Post / Carousel" radio toggle in the Create tab between the textarea and Generate button. Selecting "Carousel" reveals a template picker with three options (Numbered Tips, Before/After, Myth vs Reality) and changes the button text to "Generate Carousel"
+- **Carousel results display** — carousel-specific result card showing title, template type, slide count, horizontal slide preview strip (Cover, Tip 1, Tip 2..., CTA boxes), full slide content details, "Download PDF" button, "Regenerate Content" button, and "Add to Calendar" button
+- **Carousel history integration** — carousel entries in the History section display a "Carousel" tag alongside the category tag, show the carousel title and slide count instead of draft text, and include a "Download PDF" link when the file still exists
+- **`POST /api/generate/carousel`** — main carousel generation endpoint. Validates category, raw_input, and template_type; saves insight; calls `generate_carousel_content()` + `render_carousel()`; saves generation and carousel metadata; returns carousel info with download URL and slide previews
+- **`GET /api/carousel/download/<generation_id>`** — serves the generated PDF file for download, returns 404 if carousel data or file doesn't exist
+- **`POST /api/generate/carousel/regenerate`** — regenerates carousel content from the same insight with new API call, renders new PDF, returns updated carousel data
+- **`carousel_data` database table** — stores carousel metadata (generation_id FK, template_type, parsed_content as JSON, pdf_filename, slide_count)
+- **`save_carousel_data()`** and **`get_carousel_data()`** database functions
+- **`cleanup_old_carousels(days=30)`** — runs on app startup, deletes PDF files older than 30 days from `generated_carousels/`
+- **`generated_carousels/` directory** created automatically on app startup
+- History API (`GET /api/history`) now enriches responses with carousel metadata including template type, slide count, download URL, and file existence check
+
+### Changed
+- `GET /api/history` response now includes a `carousel` object on drafts that are carousels, with `template_type`, `slide_count`, `title`, `pdf_url`, and `file_exists` fields
+- Generate button text dynamically updates: "Generate Drafts" (text), "Generate Carousel" (carousel), or "Generate Reaction" (URL)
+- Results section heading switches between "Your Drafts" and "Your Carousel" based on output type
+- Regenerate button hidden for carousel results (carousel card has its own "Regenerate Content" button)
+
 ## [1.7.0] - 2026-03-13
 
 ### Added

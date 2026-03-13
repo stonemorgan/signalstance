@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -477,6 +478,31 @@ def get_article_by_id(article_id):
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def save_carousel_data(generation_id, template_type, parsed_content, pdf_filename, slide_count):
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO carousel_data (generation_id, template_type, parsed_content, pdf_filename, slide_count)
+           VALUES (?, ?, ?, ?, ?)""",
+        (generation_id, template_type, json.dumps(parsed_content), pdf_filename, slide_count),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_carousel_data(generation_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM carousel_data WHERE generation_id = ?",
+        (generation_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    d = dict(row)
+    d["parsed_content"] = json.loads(d["parsed_content"])
+    return d
 
 
 def get_feed_stats():

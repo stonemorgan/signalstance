@@ -63,3 +63,14 @@ CREATE TABLE IF NOT EXISTS feed_articles (
     dismissed INTEGER DEFAULT 0,
     FOREIGN KEY (feed_id) REFERENCES feeds(id)
 );
+
+CREATE TABLE IF NOT EXISTS carousel_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    generation_id INTEGER NOT NULL UNIQUE,
+    template_type TEXT NOT NULL,
+    parsed_content TEXT NOT NULL,
+    pdf_filename TEXT,
+    slide_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (generation_id) REFERENCES generations(id)
+);

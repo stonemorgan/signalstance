@@ -1,8 +1,10 @@
+import os
 import re
 import threading
+import time
 from datetime import date, datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT, SUGGESTED_TIMES
 from database import (
@@ -12,6 +14,7 @@ from database import (
     delete_feed,
     generate_week_slots,
     get_article_by_id,
+    get_carousel_data,
     get_feed_stats,
     get_feeds,
     get_generation_history,
@@ -23,6 +26,7 @@ from database import (
     mark_article_dismissed,
     mark_article_used,
     mark_generation_copied,
+    save_carousel_data,
     save_generation,
     save_insight,
     seed_default_feeds,
@@ -32,10 +36,12 @@ from database import (
 from engine import (
     generate_autopilot,
     generate_autopilot_from_feeds,
+    generate_carousel_content,
     generate_from_feed_article,
     generate_from_url,
     generate_posts,
 )
+from carousel_renderer import render_carousel
 from feed_scanner import fetch_feed, refresh_and_score
 
 app = Flask(__name__)
@@ -322,6 +328,19 @@ def history():
     try:
         limit = min(int(request.args.get("limit", 30)), 100)
         rows = get_generation_history(limit=limit)
+        # Enrich with carousel data
+        for item in rows:
+            for draft in item.get("drafts", []):
+                cd = get_carousel_data(draft["id"])
+                if cd:
+                    draft["carousel"] = {
+                        "template_type": cd["template_type"],
+                        "slide_count": cd["slide_count"],
+                        "pdf_filename": cd["pdf_filename"],
+                        "title": cd["parsed_content"].get("title", ""),
+                        "pdf_url": f"/api/carousel/download/{draft['id']}",
+                        "file_exists": os.path.isfile(os.path.join(CAROUSEL_DIR, cd["pdf_filename"])) if cd["pdf_filename"] else False,
+                    }
         return jsonify({"success": True, "history": rows})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -633,6 +652,160 @@ def articles_dismiss(article_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ── Carousel Routes ──────────────────────────────────────────────────────
+
+
+CAROUSEL_DIR = os.path.join(os.path.dirname(__file__), "generated_carousels")
+VALID_TEMPLATES = {"tips", "beforeafter", "mythreality"}
+
+
+@app.route("/api/generate/carousel", methods=["POST"])
+def generate_carousel_route():
+    if API_KEY_MISSING:
+        return jsonify({"success": False, "error": "API key not configured."}), 503
+
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+        category = data.get("category", "").strip()
+        raw_input_text = data.get("raw_input", "").strip()
+        template_type = data.get("template_type", "").strip()
+
+        if category not in {"pattern", "faq", "noticed", "hottake"}:
+            return jsonify({"success": False, "error": "Invalid category."}), 400
+        if not raw_input_text:
+            return jsonify({"success": False, "error": "raw_input is required"}), 400
+        if template_type not in VALID_TEMPLATES:
+            return jsonify({"success": False, "error": "Invalid template_type. Must be one of: tips, beforeafter, mythreality"}), 400
+
+        # Save insight
+        insight_id = save_insight(category, raw_input_text)
+
+        # Generate carousel content
+        parsed = generate_carousel_content(template_type, raw_input_text)
+        if "error" in parsed:
+            return jsonify({"success": False, "error": parsed["error"]}), 500
+
+        # Render PDF
+        os.makedirs(CAROUSEL_DIR, exist_ok=True)
+        timestamp = int(time.time())
+        pdf_filename = f"carousel_{insight_id}_{template_type}_{timestamp}.pdf"
+        pdf_path = os.path.join(CAROUSEL_DIR, pdf_filename)
+
+        render_result = render_carousel(parsed, template_type, pdf_path)
+        if not render_result.get("success"):
+            return jsonify({"success": False, "error": render_result.get("error", "PDF rendering failed")}), 500
+
+        # Save generation record (use carousel title as content for history)
+        gen_id = save_generation(insight_id, 1, parsed["title"])
+
+        # Save carousel metadata
+        slide_count = render_result["page_count"]
+        save_carousel_data(gen_id, template_type, parsed, pdf_filename, slide_count)
+
+        return jsonify({
+            "success": True,
+            "insight_id": insight_id,
+            "generation_id": gen_id,
+            "carousel": {
+                "title": parsed["title"],
+                "subtitle": parsed.get("subtitle"),
+                "template_type": template_type,
+                "slide_count": slide_count,
+                "pdf_url": f"/api/carousel/download/{gen_id}",
+                "slides_preview": parsed["slides"],
+                "cta": parsed.get("cta", ""),
+            },
+        })
+
+    except Exception as e:
+        return _handle_api_error(e)
+
+
+@app.route("/api/carousel/download/<int:generation_id>")
+def download_carousel(generation_id):
+    carousel = get_carousel_data(generation_id)
+    if not carousel or not carousel.get("pdf_filename"):
+        return jsonify({"success": False, "error": "Carousel not found"}), 404
+
+    filepath = os.path.join(CAROUSEL_DIR, carousel["pdf_filename"])
+    if not os.path.isfile(filepath):
+        return jsonify({"success": False, "error": "PDF file not found"}), 404
+
+    return send_file(filepath, as_attachment=True, download_name=carousel["pdf_filename"])
+
+
+@app.route("/api/generate/carousel/regenerate", methods=["POST"])
+def regenerate_carousel_route():
+    if API_KEY_MISSING:
+        return jsonify({"success": False, "error": "API key not configured."}), 503
+
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+
+        insight_id = data.get("insight_id")
+        template_type = data.get("template_type", "").strip()
+
+        if not insight_id:
+            return jsonify({"success": False, "error": "insight_id is required"}), 400
+        if template_type not in VALID_TEMPLATES:
+            return jsonify({"success": False, "error": "Invalid template_type."}), 400
+
+        # Fetch the original insight
+        from database import get_connection
+        conn = get_connection()
+        insight = conn.execute("SELECT * FROM insights WHERE id = ?", (insight_id,)).fetchone()
+        conn.close()
+
+        if not insight:
+            return jsonify({"success": False, "error": "Insight not found"}), 404
+
+        raw_input_text = insight["raw_input"]
+
+        # Generate new carousel content
+        parsed = generate_carousel_content(template_type, raw_input_text)
+        if "error" in parsed:
+            return jsonify({"success": False, "error": parsed["error"]}), 500
+
+        # Render new PDF
+        os.makedirs(CAROUSEL_DIR, exist_ok=True)
+        timestamp = int(time.time())
+        pdf_filename = f"carousel_{insight_id}_{template_type}_{timestamp}.pdf"
+        pdf_path = os.path.join(CAROUSEL_DIR, pdf_filename)
+
+        render_result = render_carousel(parsed, template_type, pdf_path)
+        if not render_result.get("success"):
+            return jsonify({"success": False, "error": render_result.get("error", "PDF rendering failed")}), 500
+
+        # Save new generation
+        gen_id = save_generation(insight_id, 1, parsed["title"])
+
+        slide_count = render_result["page_count"]
+        save_carousel_data(gen_id, template_type, parsed, pdf_filename, slide_count)
+
+        return jsonify({
+            "success": True,
+            "insight_id": insight_id,
+            "generation_id": gen_id,
+            "carousel": {
+                "title": parsed["title"],
+                "subtitle": parsed.get("subtitle"),
+                "template_type": template_type,
+                "slide_count": slide_count,
+                "pdf_url": f"/api/carousel/download/{gen_id}",
+                "slides_preview": parsed["slides"],
+                "cta": parsed.get("cta", ""),
+            },
+        })
+
+    except Exception as e:
+        return _handle_api_error(e)
+
+
 @app.route("/api/feeds/refresh", methods=["POST"])
 def feeds_refresh():
     try:
@@ -678,9 +851,27 @@ def _handle_api_error(e):
     return jsonify({"success": False, "error": f"Generation failed: {error_str}"}), 500
 
 
+def cleanup_old_carousels(days=30):
+    """Delete PDF files older than N days from generated_carousels/."""
+    if not os.path.isdir(CAROUSEL_DIR):
+        return
+    cutoff = time.time() - (days * 86400)
+    for filename in os.listdir(CAROUSEL_DIR):
+        if not filename.endswith(".pdf"):
+            continue
+        filepath = os.path.join(CAROUSEL_DIR, filename)
+        try:
+            if os.path.getmtime(filepath) < cutoff:
+                os.remove(filepath)
+        except OSError:
+            pass
+
+
 # Initialize database and seed feeds on startup
 init_db()
 seed_default_feeds()
+os.makedirs(CAROUSEL_DIR, exist_ok=True)
+cleanup_old_carousels()
 
 
 def maybe_refresh_feeds():

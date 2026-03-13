@@ -122,18 +122,26 @@ The Feed Scanner pulls articles from 12 curated sources covering executive caree
 
 ### Carousel Generation
 
-Generate multi-slide LinkedIn carousel content from any insight. Carousels produce structured slide content that can be rendered into swipeable PDF card decks for LinkedIn.
+Generate branded LinkedIn carousel PDFs directly from the app. Carousels are multi-slide PDF documents that display as swipeable card decks when uploaded to LinkedIn as document posts.
 
-1. Call `generate_carousel_content(template_type, raw_input)` with one of three template types:
+1. Select a category and type your insight as usual
+2. Switch the **Output** toggle from "Text Post" to **"Carousel"**
+3. Choose a template:
+   - **Numbered Tips** — "7 mistakes", "5 strategies" — one tip per slide with headline + body
+   - **Before / After** — weak vs strong resume examples side by side
+   - **Myth vs Reality** — debunk common misconceptions with expert corrections
+4. Click **"Generate Carousel"**
+5. Review the result card showing the carousel title, slide preview strip, and full slide content
+6. Click **"Download PDF"** to get the file, then upload it to LinkedIn as a document post
+7. Click **"Regenerate Content"** if you want different slide content with the same template
 
-**Numbered Tips (`"tips"`):** "7 Resume Mistakes Costing You Interviews" — numbered tip slides with headline + body. Best for actionable advice lists.
+Carousels also appear in the History section with a "Carousel" tag and a download link. Old PDFs are automatically cleaned up after 30 days.
 
-**Before/After (`"beforeafter"`):** "Resume Bullets: Weak vs Strong" — side-by-side transformations showing weak resume text vs Dana's rewrite. Best for concrete demonstrations.
+**Carousel API endpoints:**
 
-**Myth vs Reality (`"mythreality"`):** "5 ATS Myths Sabotaging Your Job Search" — debunks common misconceptions with expert corrections. Best for correcting bad advice.
-
-2. The function returns a parsed dict with `title`, `subtitle`, `slides` (list of slide content dicts), and `cta`
-3. Each template enforces specific content rules: tips get 5–7 slides with headlines ≤6 words, before/after gets 4–6 pairs with metric-rich rewrites, myth/reality gets 4–6 pairs grounded in ATS/recruiter expertise
+- `POST /api/generate/carousel` — generate a carousel (JSON body: `category`, `raw_input`, `template_type`). Returns carousel info with `pdf_url`, `slides_preview`, and metadata.
+- `GET /api/carousel/download/<generation_id>` — download the generated PDF file
+- `POST /api/generate/carousel/regenerate` — regenerate with the same insight (JSON body: `insight_id`, `template_type`)
 
 ### PDF Carousel Rendering
 
@@ -151,7 +159,7 @@ Each PDF contains:
 - **Content slides** — template-specific layouts matching the three content templates (tips with watermark numbers, before/after with red/green comparison boxes, myth/reality with pill dividers)
 - **CTA slide** — author credentials, LinkedIn URL, and call-to-action in a teal rounded box
 
-All visual styling (colors, fonts, identity) is sourced from `brand.py`. PDFs are saved to `generated_carousels/` by default.
+All visual styling (colors, fonts, identity) is sourced from `brand.py`. PDFs are saved to `generated_carousels/` and automatically cleaned up after 30 days.
 
 ### Tips for Good Insights
 
