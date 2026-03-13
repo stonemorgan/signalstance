@@ -11,45 +11,11 @@ from database import (
     save_generation,
     save_insight,
 )
+from engine import generate_posts
 
 app = Flask(__name__)
 
 VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake"}
-
-# Mock drafts used until engine.py is wired up
-MOCK_DRAFTS = [
-    {
-        "content": (
-            "I reviewed 14 executive resumes this month.\n\n"
-            "11 of them made the same mistake: listing responsibilities instead of results.\n\n"
-            "Your resume is not a job description rewrite. It's a business case for hiring you.\n\n"
-            "The fix takes 20 minutes. The impact lasts your entire career.\n\n"
-            "Have you audited your resume for this?"
-        ),
-        "angle": "Direct advice angle — leads with the pattern",
-    },
-    {
-        "content": (
-            "A client came to me last week — VP of Operations, 18 years of experience, managing a $40M P&L.\n\n"
-            "Her resume read like a Wikipedia article about her company.\n\n"
-            "We rewrote it around three metrics: revenue influenced, team scale, and process efficiency gains.\n\n"
-            "She had interviews within two weeks.\n\n"
-            "Your experience isn't the problem. How you frame it might be."
-        ),
-        "angle": "Story-driven — opens with a client scenario",
-    },
-    {
-        "content": (
-            "6 seconds.\n\n"
-            "That's the average time a recruiter spends on your resume before deciding yes or no.\n\n"
-            "In those 6 seconds, they're not reading your career summary. "
-            "They're scanning for numbers, titles, and company names.\n\n"
-            "If your resume doesn't pass the 6-second scan, the rest doesn't matter.\n\n"
-            "What does the top third of your resume actually say?"
-        ),
-        "angle": "Data-driven — leads with the metric",
-    },
-]
 
 
 @app.route("/")
@@ -79,18 +45,23 @@ def generate():
         if not raw_input:
             return jsonify({"success": False, "error": "raw_input is required"}), 400
 
-        # Save insight
-        insight_id = save_insight(category, raw_input, data.get("source_url"))
+        source_url = data.get("source_url")
 
-        # Use mock drafts (engine.py not wired up yet)
+        # Generate drafts via the Anthropic API
+        drafts = generate_posts(category, raw_input, source_url)
+
+        # Save insight
+        insight_id = save_insight(category, raw_input, source_url)
+
+        # Save drafts and build response
         drafts_response = []
-        for i, mock in enumerate(MOCK_DRAFTS, start=1):
-            gen_id = save_generation(insight_id, i, mock["content"])
+        for i, draft in enumerate(drafts, start=1):
+            gen_id = save_generation(insight_id, i, draft["content"])
             drafts_response.append({
                 "id": gen_id,
                 "draft_number": i,
-                "content": mock["content"],
-                "angle": mock["angle"],
+                "content": draft["content"],
+                "angle": draft["angle"],
             })
 
         return jsonify({"success": True, "insight_id": insight_id, "drafts": drafts_response})
