@@ -270,6 +270,16 @@ def history():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/insight/<int:insight_id>/generations")
+def insight_generations(insight_id):
+    try:
+        from database import get_generations_for_insight
+        gens = get_generations_for_insight(insight_id)
+        return jsonify({"success": True, "generations": gens})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/calendar")
 def calendar():
     try:

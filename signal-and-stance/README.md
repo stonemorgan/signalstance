@@ -59,11 +59,23 @@ python app.py
 
 The Calendar tab shows your week laid out with content slots for Monday through Friday. Each day has a content type (Pattern, Tactical Tip, Deep Dive, Hot Take, Quick Win) and a suggested posting time.
 
-1. Switch to the **Calendar** tab
-2. Navigate weeks with the arrow buttons
-3. Each day card shows its current status: empty, draft ready, scheduled, published, or skipped
-4. Use **Skip** to mark days you don't plan to post
-5. Past weeks display as read-only history
+1. Switch to the **Calendar** tab and navigate to the week you want to plan
+2. Click **Generate Content** on an empty day — this switches to the Create tab with the matching category pre-selected and a banner showing which day you're generating for
+3. Type your insight and generate as usual. Each draft card now shows a **"Use for [Day]"** button
+4. Click **"Use for [Day]"** on the draft you want — the app assigns it and returns to the Calendar
+5. Click **Copy & Schedule on LinkedIn** — the draft is copied to your clipboard and LinkedIn opens in a new tab
+6. Paste into LinkedIn, use the clock icon to schedule, then return to Signal & Stance
+7. Enter the time you scheduled and click **"I've Scheduled It"** to confirm
+8. After the post goes live, click **Mark as Published** to complete the slot
+
+**Other calendar actions:**
+
+- **Pick from Bank** — browse past insights directly from a calendar slot, pick one to pre-fill the Create form
+- **Change** — swap the assigned draft for a different variation from the same generation session, or click Regenerate to create new drafts
+- **Clear** — reset a draft ready slot back to empty
+- **Skip / Unskip** — mark days you don't plan to post
+- **Unschedule** — return a scheduled slot to draft ready (remember to also cancel on LinkedIn)
+- Past weeks display as read-only history
 
 Slot statuses flow in this order: **empty** → **draft ready** → **scheduled** → **published**. Any slot can also be marked as **skipped**.
 

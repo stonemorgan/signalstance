@@ -199,15 +199,16 @@ def get_week_slots(start_date=None):
             d["draft"] = {
                 "generation_id": d["generation_id"],
                 "content": d.pop("draft_content"),
+                "insight_id": d.pop("draft_insight_id"),
                 "insight_category": d.pop("insight_category"),
                 "insight_text": d.pop("insight_text"),
             }
         else:
             d.pop("draft_content", None)
+            d.pop("draft_insight_id", None)
             d.pop("insight_category", None)
             d.pop("insight_text", None)
             d["draft"] = None
-        d.pop("draft_insight_id", None)
         slots.append(d)
 
     conn.close()

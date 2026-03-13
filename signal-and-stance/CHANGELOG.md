@@ -4,6 +4,27 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-13
+
+### Added
+- **Create ↔ Calendar interaction** — "Generate Content" on a calendar slot switches to Create tab with category pre-selected and a context banner showing which day you're generating for
+- **"Use for [Day]" buttons** on draft cards when generating for a calendar slot — assigns the chosen draft and returns to the Calendar tab
+- **Pick from Bank** — inline panel on empty calendar slots lists past insights filtered by matching category, with "Show all categories" toggle
+- **Copy & Schedule flow** — copies draft to clipboard, opens LinkedIn in a new tab, shows confirmation panel with time input; persists across tab switches until confirmed or cancelled
+- **Change draft panel** — shows all 3 drafts from the generation session inline, highlights the current selection, click to reassign; includes "Regenerate" button to re-enter the generation flow
+- **Mark as Published** — one-click status update on scheduled slots
+- **Unschedule** — returns scheduled slots to draft ready with a reminder to cancel on LinkedIn
+- **Clear** — resets draft ready slots back to empty
+- `GET /api/insight/<id>/generations` API route for fetching sibling drafts
+- `insight_id` now included in calendar slot draft data for cross-referencing
+
+### Changed
+- Calendar tab now always refreshes data when activated (ensures up-to-date state)
+- Tab switching extracted into reusable `switchToTab()` helper
+
+### Removed
+- All `console.log` placeholder stubs replaced with working implementations
+
 ## [1.1.0] - 2026-03-13
 
 ### Added
@@ -23,7 +44,6 @@ All notable changes to Signal & Stance are documented here.
 - `for_slot_id` optional parameter on `POST /api/generate` for calendar-aware generation
 - CSS variables for calendar status colors with dark theme support
 - Left border accent colors per slot status (draft=blue-gray, scheduled=blue, published=green, skipped=gray)
-- Placeholder handlers for Generate Content, Pick from Bank, Copy & Schedule, Change, Clear, Mark as Published, Unschedule (console.log stubs for Part 2 wiring)
 
 ## [1.0.0] - 2026-03-13
 

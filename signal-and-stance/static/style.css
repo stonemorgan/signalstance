@@ -1098,6 +1098,256 @@ textarea::placeholder {
     border-color: var(--border-hover);
 }
 
+/* Slot Context Banner */
+.slot-context {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--accent-text);
+    margin-bottom: 1rem;
+}
+
+.slot-context-close {
+    background: none;
+    border: none;
+    color: var(--accent-text);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+.slot-context-close:hover {
+    opacity: 1;
+}
+
+/* Draft Card Slot Button */
+.btn-use-slot {
+    padding: 0.35rem 0.9rem;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-use-slot:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+
+/* Copy & Schedule Confirmation Panel */
+.schedule-confirm {
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 0.75rem;
+}
+
+.schedule-confirm-msg {
+    font-size: 0.9rem;
+    color: var(--accent);
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+}
+
+.schedule-confirm-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.schedule-confirm-time {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.schedule-confirm-time label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.schedule-confirm-time input {
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    width: 110px;
+}
+
+.schedule-confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.schedule-confirm-actions .btn-primary {
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+}
+
+.schedule-confirm-actions .btn-secondary-sm {
+    padding: 0.35rem 0.8rem;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+/* Bank Picker Panel */
+.bank-picker {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--border-row);
+    padding-top: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.bank-picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.bank-picker-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.bank-picker-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+    line-height: 1;
+}
+
+.bank-picker-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.bank-picker-item:hover {
+    background: var(--bg-section);
+}
+
+.bank-picker-item-left {
+    flex: 1;
+    min-width: 0;
+}
+
+.bank-picker-item-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bank-picker-item-meta {
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    margin-top: 0.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Change Draft Panel */
+.change-panel {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--border-row);
+    padding-top: 0.75rem;
+}
+
+.change-panel-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.change-draft-item {
+    padding: 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.change-draft-item:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-section);
+}
+
+.change-draft-item.active {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    cursor: default;
+}
+
+.change-draft-angle {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.change-draft-preview {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Unschedule Note */
+.unschedule-note {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-section);
+    border-radius: 6px;
+    border-left: 2px solid var(--cal-scheduled);
+}
+
 /* Hidden utility */
 .hidden {
     display: none !important;

@@ -46,6 +46,10 @@
         </div>
 
         <div id="tab-create">
+        <div id="slot-context" class="slot-context hidden">
+            <span id="slot-context-text"></span>
+            <button id="slot-context-close" class="slot-context-close">&times;</button>
+        </div>
         <section class="category-section">
             <h2>What kind of post?</h2>
             <div class="category-grid">
@@ -182,6 +186,21 @@
             let insightBankLoaded = false;
             let historyLoaded = false;
             let lastGenerationMode = null; // 'manual', 'url', 'autopilot'
+            let forSlotId = null;
+            let forSlotDay = null;
+            let forSlotDate = null;
+            let forSlotContentType = null;
+            let confirmingSlots = {}; // { slotId: { time: '8:30 AM' } }
+            let scrollToSlotId = null;
+            let unscheduleNoteSlotId = null;
+
+            const contentTypeToCat = {
+                'Educational / Pattern': 'pattern',
+                'Tactical Tip': 'noticed',
+                'Deep Dive / Story': 'faq',
+                'Thought Leadership / Hot Take': 'hottake',
+                'Quick Win / Encouragement': 'noticed'
+            };
 
             // Elements
             const todayBanner = document.getElementById('today-banner');
@@ -327,13 +346,13 @@
                 hideSource();
                 results.classList.add('hidden');
 
+                const payload = { category: selectedCategory, raw_input: text };
+                if (forSlotId) payload.for_slot_id = forSlotId;
+
                 fetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        category: selectedCategory,
-                        raw_input: text
-                    })
+                    body: JSON.stringify(payload)
                 })
                 .then(r => r.json())
                 .then(data => {
@@ -465,14 +484,28 @@
                     content.className = 'draft-content';
                     content.textContent = draft.content;
 
+                    const btnRow = document.createElement('div');
+                    btnRow.style.display = 'flex';
+                    btnRow.style.gap = '0.5rem';
+                    btnRow.style.alignItems = 'center';
+
                     const copyBtn = document.createElement('button');
                     copyBtn.className = 'btn-copy';
                     copyBtn.textContent = 'Copy';
                     copyBtn.addEventListener('click', () => copyDraft(draft, copyBtn));
+                    btnRow.appendChild(copyBtn);
+
+                    if (forSlotId && forSlotDay) {
+                        const useBtn = document.createElement('button');
+                        useBtn.className = 'btn-use-slot';
+                        useBtn.textContent = 'Use for ' + forSlotDay + ' \u2197';
+                        useBtn.addEventListener('click', () => assignToSlot(forSlotId, draft.id));
+                        btnRow.appendChild(useBtn);
+                    }
 
                     card.appendChild(angle);
                     card.appendChild(content);
-                    card.appendChild(copyBtn);
+                    card.appendChild(btnRow);
                     draftsContainer.appendChild(card);
                 });
             }
@@ -823,25 +856,31 @@
             const tabCreate = document.getElementById('tab-create');
             const tabCalendar = document.getElementById('tab-calendar');
             let calendarLoaded = false;
-            let calendarWeekParam = 'current';
             let calendarWeekStart = null; // ISO date string of current week's Monday
+
+            function switchToTab(tabName) {
+                tabBtns.forEach(b => {
+                    b.classList.remove('active');
+                    if (b.dataset.tab === tabName) b.classList.add('active');
+                });
+                if (tabName === 'create') {
+                    tabCreate.classList.remove('hidden');
+                    tabCalendar.classList.add('hidden');
+                } else {
+                    tabCreate.classList.add('hidden');
+                    tabCalendar.classList.remove('hidden');
+                    fetchCalendar(calendarWeekStart || 'current');
+                    calendarLoaded = true;
+                }
+            }
 
             tabBtns.forEach(btn => {
                 btn.addEventListener('click', () => {
-                    tabBtns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
                     const tab = btn.dataset.tab;
-                    if (tab === 'create') {
-                        tabCreate.classList.remove('hidden');
-                        tabCalendar.classList.add('hidden');
-                    } else {
-                        tabCreate.classList.add('hidden');
-                        tabCalendar.classList.remove('hidden');
-                        if (!calendarLoaded) {
-                            fetchCalendar('current');
-                            calendarLoaded = true;
-                        }
+                    if (tab === 'calendar' && forSlotId) {
+                        clearSlotContext();
                     }
+                    switchToTab(tab);
                 });
             });
 
@@ -1011,91 +1050,505 @@
 
                     // Actions (only for non-past weeks)
                     if (!isPast) {
-                        const actions = document.createElement('div');
-                        actions.className = 'day-card-actions';
+                        // Check if this slot is in Copy & Schedule confirming state
+                        if (slot.status === 'draft_ready' && confirmingSlots[slot.id]) {
+                            renderScheduleConfirm(card, slot);
+                        } else {
+                            const actions = document.createElement('div');
+                            actions.className = 'day-card-actions';
 
-                        if (slot.status === 'empty') {
-                            const genBtn = document.createElement('button');
-                            genBtn.className = 'btn-primary';
-                            genBtn.textContent = 'Generate Content';
-                            genBtn.addEventListener('click', () => {
-                                console.log('Generate Content for slot', slot.id);
-                            });
+                            if (slot.status === 'empty') {
+                                const genBtn = document.createElement('button');
+                                genBtn.className = 'btn-primary';
+                                genBtn.textContent = 'Generate Content';
+                                genBtn.addEventListener('click', () => doGenerateForSlot(slot));
 
-                            const bankBtn = document.createElement('button');
-                            bankBtn.className = 'btn-secondary-sm';
-                            bankBtn.textContent = 'Pick from Bank';
-                            bankBtn.addEventListener('click', () => {
-                                console.log('Pick from Bank for slot', slot.id);
-                            });
+                                const bankBtn = document.createElement('button');
+                                bankBtn.className = 'btn-secondary-sm';
+                                bankBtn.textContent = 'Pick from Bank';
+                                bankBtn.addEventListener('click', () => doPickFromBank(slot, card));
 
-                            const skipBtn = document.createElement('button');
-                            skipBtn.className = 'btn-skip';
-                            skipBtn.textContent = 'Skip';
-                            skipBtn.addEventListener('click', () => doSkipToggle(slot.id));
+                                const skipBtn = document.createElement('button');
+                                skipBtn.className = 'btn-skip';
+                                skipBtn.textContent = 'Skip';
+                                skipBtn.addEventListener('click', () => doSkipToggle(slot.id));
 
-                            actions.appendChild(genBtn);
-                            actions.appendChild(bankBtn);
-                            actions.appendChild(skipBtn);
-                        } else if (slot.status === 'draft_ready') {
-                            const schedBtn = document.createElement('button');
-                            schedBtn.className = 'btn-primary';
-                            schedBtn.textContent = 'Copy & Schedule on LinkedIn \u2197';
-                            schedBtn.addEventListener('click', () => {
-                                console.log('Copy & Schedule for slot', slot.id);
-                            });
+                                actions.appendChild(genBtn);
+                                actions.appendChild(bankBtn);
+                                actions.appendChild(skipBtn);
+                            } else if (slot.status === 'draft_ready') {
+                                const schedBtn = document.createElement('button');
+                                schedBtn.className = 'btn-primary';
+                                schedBtn.textContent = 'Copy & Schedule on LinkedIn \u2197';
+                                schedBtn.addEventListener('click', () => doCopyAndSchedule(slot));
 
-                            const changeBtn = document.createElement('button');
-                            changeBtn.className = 'btn-secondary-sm';
-                            changeBtn.textContent = 'Change';
-                            changeBtn.addEventListener('click', () => {
-                                console.log('Change draft for slot', slot.id);
-                            });
+                                const changeBtn = document.createElement('button');
+                                changeBtn.className = 'btn-secondary-sm';
+                                changeBtn.textContent = 'Change';
+                                changeBtn.addEventListener('click', () => doChangeDraft(slot, card));
 
-                            const clearBtn = document.createElement('button');
-                            clearBtn.className = 'btn-secondary-sm';
-                            clearBtn.textContent = 'Clear';
-                            clearBtn.addEventListener('click', () => {
-                                console.log('Clear slot', slot.id);
-                            });
+                                const clearBtn = document.createElement('button');
+                                clearBtn.className = 'btn-secondary-sm';
+                                clearBtn.textContent = 'Clear';
+                                clearBtn.addEventListener('click', () => doClearSlot(slot.id));
 
-                            actions.appendChild(schedBtn);
-                            actions.appendChild(changeBtn);
-                            actions.appendChild(clearBtn);
-                        } else if (slot.status === 'scheduled') {
-                            const pubBtn = document.createElement('button');
-                            pubBtn.className = 'btn-primary';
-                            pubBtn.textContent = 'Mark as Published \u2713';
-                            pubBtn.addEventListener('click', () => {
-                                console.log('Mark as Published for slot', slot.id);
-                            });
+                                actions.appendChild(schedBtn);
+                                actions.appendChild(changeBtn);
+                                actions.appendChild(clearBtn);
+                            } else if (slot.status === 'scheduled') {
+                                const pubBtn = document.createElement('button');
+                                pubBtn.className = 'btn-primary';
+                                pubBtn.textContent = 'Mark as Published \u2713';
+                                pubBtn.addEventListener('click', () => doMarkPublished(slot.id));
 
-                            const unschedBtn = document.createElement('button');
-                            unschedBtn.className = 'btn-secondary-sm';
-                            unschedBtn.textContent = 'Unschedule';
-                            unschedBtn.addEventListener('click', () => {
-                                console.log('Unschedule slot', slot.id);
-                            });
+                                const unschedBtn = document.createElement('button');
+                                unschedBtn.className = 'btn-secondary-sm';
+                                unschedBtn.textContent = 'Unschedule';
+                                unschedBtn.addEventListener('click', () => doUnschedule(slot.id));
 
-                            actions.appendChild(pubBtn);
-                            actions.appendChild(unschedBtn);
-                        } else if (slot.status === 'skipped') {
-                            const unskipBtn = document.createElement('button');
-                            unskipBtn.className = 'btn-secondary-sm';
-                            unskipBtn.textContent = 'Unskip';
-                            unskipBtn.addEventListener('click', () => doSkipToggle(slot.id));
+                                actions.appendChild(pubBtn);
+                                actions.appendChild(unschedBtn);
+                            } else if (slot.status === 'skipped') {
+                                const unskipBtn = document.createElement('button');
+                                unskipBtn.className = 'btn-secondary-sm';
+                                unskipBtn.textContent = 'Unskip';
+                                unskipBtn.addEventListener('click', () => doSkipToggle(slot.id));
 
-                            actions.appendChild(unskipBtn);
+                                actions.appendChild(unskipBtn);
+                            }
+                            // published = no action buttons
+
+                            if (actions.children.length > 0) {
+                                card.appendChild(actions);
+                            }
                         }
-                        // published = no action buttons
+                    }
 
-                        if (actions.children.length > 0) {
-                            card.appendChild(actions);
-                        }
+                    // Unschedule reminder note
+                    if (unscheduleNoteSlotId === slot.id) {
+                        const note = document.createElement('div');
+                        note.className = 'unschedule-note';
+                        note.textContent = 'Remember to also cancel the scheduled post on LinkedIn if you haven\'t already.';
+                        card.appendChild(note);
+                        unscheduleNoteSlotId = null;
+                        setTimeout(() => note.remove(), 6000);
                     }
 
                     calDays.appendChild(card);
                 });
+
+                // Scroll to a specific slot if requested (after assignment)
+                if (scrollToSlotId) {
+                    const targetCard = calDays.querySelector('[data-slot-id="' + scrollToSlotId + '"]');
+                    if (targetCard) {
+                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    scrollToSlotId = null;
+                }
+            }
+
+            // ---- Slot Context (Create ↔ Calendar) ----
+
+            function setSlotContext(slot) {
+                forSlotId = slot.id;
+                forSlotDay = slot.day_name;
+                forSlotDate = slot.slot_date;
+                forSlotContentType = slot.content_type;
+                const contextEl = document.getElementById('slot-context');
+                const contextText = document.getElementById('slot-context-text');
+                contextText.textContent = 'Generating for: ' + slot.day_name + ', ' + formatDate(slot.slot_date) + ' \u2014 ' + slot.content_type;
+                contextEl.classList.remove('hidden');
+            }
+
+            function clearSlotContext() {
+                forSlotId = null;
+                forSlotDay = null;
+                forSlotDate = null;
+                forSlotContentType = null;
+                const contextEl = document.getElementById('slot-context');
+                contextEl.classList.add('hidden');
+            }
+
+            document.getElementById('slot-context-close').addEventListener('click', clearSlotContext);
+
+            // ---- Calendar Action Handlers ----
+
+            function doGenerateForSlot(slot) {
+                setSlotContext(slot);
+                switchToTab('create');
+                // Pre-select matching category
+                const cat = contentTypeToCat[slot.content_type] || 'pattern';
+                categoryBtns.forEach(btn => {
+                    btn.classList.remove('selected');
+                    if (btn.dataset.category === cat) {
+                        btn.classList.add('selected');
+                        selectedCategory = cat;
+                        rawInput.placeholder = btn.dataset.placeholder;
+                        rawInput.disabled = false;
+                    }
+                });
+                rawInput.focus();
+                updateGenerateBtn();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            function doPickFromBank(slot, card) {
+                // Toggle panel if already open
+                const existing = card.querySelector('.bank-picker');
+                if (existing) { existing.remove(); return; }
+
+                const panel = document.createElement('div');
+                panel.className = 'bank-picker';
+                panel.innerHTML = '<p class="loading-text">Loading insights...</p>';
+                card.appendChild(panel);
+
+                fetch('/api/insights?limit=20')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success || !data.insights || data.insights.length === 0) {
+                            panel.innerHTML = '<p class="empty-state">No insights available. Generate some content first.</p>';
+                            return;
+                        }
+                        panel.innerHTML = '';
+
+                        // Header
+                        const hdr = document.createElement('div');
+                        hdr.className = 'bank-picker-header';
+                        const title = document.createElement('span');
+                        title.className = 'bank-picker-title';
+                        title.textContent = 'Pick an insight';
+                        const closeBtn = document.createElement('button');
+                        closeBtn.className = 'bank-picker-close';
+                        closeBtn.textContent = '\u00D7';
+                        closeBtn.addEventListener('click', () => panel.remove());
+                        hdr.appendChild(title);
+                        hdr.appendChild(closeBtn);
+                        panel.appendChild(hdr);
+
+                        // Filter to matching category if possible
+                        const matchingCat = contentTypeToCat[slot.content_type];
+                        const matched = matchingCat ? data.insights.filter(i => i.category === matchingCat) : [];
+                        let showFiltered = matched.length > 0;
+
+                        if (showFiltered && data.insights.length > matched.length) {
+                            const toggleRow = document.createElement('div');
+                            toggleRow.style.marginBottom = '0.5rem';
+                            const toggleBtn = document.createElement('button');
+                            toggleBtn.className = 'day-card-toggle';
+                            toggleBtn.textContent = 'Show all categories';
+                            toggleBtn.addEventListener('click', () => {
+                                renderBankItems(panel, data.insights, slot);
+                                toggleRow.remove();
+                            });
+                            toggleRow.appendChild(toggleBtn);
+                            panel.appendChild(toggleRow);
+                        }
+
+                        renderBankItems(panel, showFiltered ? matched : data.insights, slot);
+                    })
+                    .catch(() => {
+                        panel.innerHTML = '<p class="empty-state">Could not load insights.</p>';
+                    });
+            }
+
+            function renderBankItems(panel, insights, slot) {
+                panel.querySelectorAll('.bank-picker-item').forEach(el => el.remove());
+                insights.forEach(insight => {
+                    const item = document.createElement('div');
+                    item.className = 'bank-picker-item';
+
+                    const left = document.createElement('div');
+                    left.className = 'bank-picker-item-left';
+
+                    const text = document.createElement('div');
+                    text.className = 'bank-picker-item-text';
+                    text.textContent = insight.raw_input.length > 80 ? insight.raw_input.substring(0, 80) + '...' : insight.raw_input;
+
+                    const meta = document.createElement('div');
+                    meta.className = 'bank-picker-item-meta';
+                    const tag = document.createElement('span');
+                    tag.className = 'category-tag tag-' + insight.category;
+                    tag.textContent = formatCategory(insight.category);
+                    meta.appendChild(tag);
+                    meta.appendChild(document.createTextNode(' ' + relativeTime(insight.created_at)));
+
+                    left.appendChild(text);
+                    left.appendChild(meta);
+                    item.appendChild(left);
+
+                    item.addEventListener('click', () => {
+                        setSlotContext(slot);
+                        switchToTab('create');
+                        const cat = ['pattern', 'faq', 'noticed', 'hottake'].includes(insight.category)
+                            ? insight.category : 'noticed';
+                        categoryBtns.forEach(btn => {
+                            btn.classList.remove('selected');
+                            if (btn.dataset.category === cat) {
+                                btn.classList.add('selected');
+                                selectedCategory = cat;
+                                rawInput.placeholder = btn.dataset.placeholder;
+                                rawInput.disabled = false;
+                            }
+                        });
+                        rawInput.value = insight.raw_input;
+                        urlInput.value = insight.source_url || '';
+                        updateGenerateBtn();
+                        rawInput.focus();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+
+                    panel.appendChild(item);
+                });
+            }
+
+            function assignToSlot(slotId, generationId) {
+                fetch('/api/calendar/assign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slot_id: slotId, generation_id: generationId })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        clearSlotContext();
+                        scrollToSlotId = slotId;
+                        switchToTab('calendar');
+                    }
+                })
+                .catch(() => {});
+            }
+
+            function doCopyAndSchedule(slot) {
+                // Copy draft text to clipboard
+                const draftText = slot.draft ? slot.draft.content : '';
+                navigator.clipboard.writeText(draftText).then(() => {}).catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = draftText;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                });
+
+                // Track the copy
+                if (slot.draft && slot.draft.generation_id) {
+                    fetch('/api/copy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ generation_id: slot.draft.generation_id })
+                    }).catch(() => {});
+                }
+
+                // Open LinkedIn
+                window.open('https://www.linkedin.com/feed/', '_blank');
+
+                // Set confirming state and re-render
+                confirmingSlots[slot.id] = { time: slot.suggested_time || '9:00 AM' };
+                fetchCalendar(calendarWeekStart || 'current');
+            }
+
+            function renderScheduleConfirm(card, slot) {
+                const confirmData = confirmingSlots[slot.id];
+                const panel = document.createElement('div');
+                panel.className = 'schedule-confirm';
+
+                const msg = document.createElement('div');
+                msg.className = 'schedule-confirm-msg';
+                msg.textContent = '\u2713 Copied to clipboard!';
+
+                const hint = document.createElement('div');
+                hint.className = 'schedule-confirm-hint';
+                hint.textContent = 'Paste your post on LinkedIn, then use the clock icon to schedule it.';
+
+                const timeRow = document.createElement('div');
+                timeRow.className = 'schedule-confirm-time';
+                const timeLabel = document.createElement('label');
+                timeLabel.textContent = 'What time did you schedule it for?';
+                const timeInput = document.createElement('input');
+                timeInput.type = 'text';
+                timeInput.value = confirmData.time || '9:00 AM';
+                timeInput.placeholder = '8:30 AM';
+                timeRow.appendChild(timeLabel);
+                timeRow.appendChild(timeInput);
+
+                const btns = document.createElement('div');
+                btns.className = 'schedule-confirm-actions';
+
+                const confirmBtn = document.createElement('button');
+                confirmBtn.className = 'btn-primary';
+                confirmBtn.textContent = '\u2713 I\'ve Scheduled It';
+                confirmBtn.addEventListener('click', () => {
+                    const time = timeInput.value.trim() || slot.suggested_time;
+                    delete confirmingSlots[slot.id];
+                    fetch('/api/calendar/status', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ slot_id: slot.id, status: 'scheduled', scheduled_time: time })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) fetchCalendar(calendarWeekStart || 'current');
+                    })
+                    .catch(() => {});
+                });
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn-secondary-sm';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.addEventListener('click', () => {
+                    delete confirmingSlots[slot.id];
+                    fetchCalendar(calendarWeekStart || 'current');
+                });
+
+                btns.appendChild(confirmBtn);
+                btns.appendChild(cancelBtn);
+
+                panel.appendChild(msg);
+                panel.appendChild(hint);
+                panel.appendChild(timeRow);
+                panel.appendChild(btns);
+                card.appendChild(panel);
+            }
+
+            function doChangeDraft(slot, card) {
+                if (!slot.draft || !slot.draft.insight_id) return;
+
+                // Toggle panel
+                const existing = card.querySelector('.change-panel');
+                if (existing) { existing.remove(); return; }
+
+                const panel = document.createElement('div');
+                panel.className = 'change-panel';
+                panel.innerHTML = '<p class="loading-text">Loading drafts...</p>';
+                card.appendChild(panel);
+
+                fetch('/api/insight/' + slot.draft.insight_id + '/generations')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success || !data.generations || data.generations.length === 0) {
+                            panel.innerHTML = '<p class="empty-state">No alternative drafts available.</p>';
+                            return;
+                        }
+                        panel.innerHTML = '';
+
+                        const titleRow = document.createElement('div');
+                        titleRow.className = 'change-panel-title';
+                        const titleText = document.createTextNode('Choose a different draft');
+                        const closeBtn = document.createElement('button');
+                        closeBtn.className = 'bank-picker-close';
+                        closeBtn.textContent = '\u00D7';
+                        closeBtn.addEventListener('click', () => panel.remove());
+                        titleRow.appendChild(titleText);
+                        titleRow.appendChild(closeBtn);
+                        panel.appendChild(titleRow);
+
+                        data.generations.forEach(gen => {
+                            const item = document.createElement('div');
+                            item.className = 'change-draft-item' + (gen.id === slot.generation_id ? ' active' : '');
+
+                            const angleEl = document.createElement('div');
+                            angleEl.className = 'change-draft-angle';
+                            angleEl.textContent = 'Draft ' + gen.draft_number + (gen.id === slot.generation_id ? ' (current)' : '');
+
+                            const preview = document.createElement('div');
+                            preview.className = 'change-draft-preview';
+                            preview.textContent = gen.content.length > 150 ? gen.content.substring(0, 150) + '...' : gen.content;
+
+                            item.appendChild(angleEl);
+                            item.appendChild(preview);
+
+                            if (gen.id !== slot.generation_id) {
+                                item.addEventListener('click', () => {
+                                    fetch('/api/calendar/assign', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ slot_id: slot.id, generation_id: gen.id })
+                                    })
+                                    .then(r => r.json())
+                                    .then(d => {
+                                        if (d.success) fetchCalendar(calendarWeekStart || 'current');
+                                    })
+                                    .catch(() => {});
+                                });
+                            }
+
+                            panel.appendChild(item);
+                        });
+
+                        // Regenerate button
+                        const regenBtn = document.createElement('button');
+                        regenBtn.className = 'btn-secondary-sm';
+                        regenBtn.textContent = 'Regenerate';
+                        regenBtn.style.marginTop = '0.5rem';
+                        regenBtn.addEventListener('click', () => {
+                            setSlotContext(slot);
+                            switchToTab('create');
+                            const cat = slot.draft.insight_category || 'pattern';
+                            const safeCat = ['pattern', 'faq', 'noticed', 'hottake'].includes(cat) ? cat : 'noticed';
+                            categoryBtns.forEach(btn => {
+                                btn.classList.remove('selected');
+                                if (btn.dataset.category === safeCat) {
+                                    btn.classList.add('selected');
+                                    selectedCategory = safeCat;
+                                    rawInput.placeholder = btn.dataset.placeholder;
+                                    rawInput.disabled = false;
+                                }
+                            });
+                            rawInput.value = slot.draft.insight_text || '';
+                            urlInput.value = '';
+                            updateGenerateBtn();
+                            rawInput.focus();
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        });
+                        panel.appendChild(regenBtn);
+                    })
+                    .catch(() => {
+                        panel.innerHTML = '<p class="empty-state">Could not load drafts.</p>';
+                    });
+            }
+
+            function doClearSlot(slotId) {
+                fetch('/api/calendar/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slot_id: slotId })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) fetchCalendar(calendarWeekStart || 'current');
+                })
+                .catch(() => {});
+            }
+
+            function doMarkPublished(slotId) {
+                fetch('/api/calendar/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slot_id: slotId, status: 'published' })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) fetchCalendar(calendarWeekStart || 'current');
+                })
+                .catch(() => {});
+            }
+
+            function doUnschedule(slotId) {
+                fetch('/api/calendar/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slot_id: slotId, status: 'draft_ready' })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        unscheduleNoteSlotId = slotId;
+                        fetchCalendar(calendarWeekStart || 'current');
+                    }
+                })
+                .catch(() => {});
             }
 
             function doSkipToggle(slotId) {
@@ -1106,9 +1559,7 @@
                 })
                 .then(r => r.json())
                 .then(data => {
-                    if (data.success) {
-                        fetchCalendar(calendarWeekStart || 'current');
-                    }
+                    if (data.success) fetchCalendar(calendarWeekStart || 'current');
                 })
                 .catch(() => {});
             }
