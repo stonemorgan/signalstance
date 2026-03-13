@@ -69,6 +69,10 @@ Past insights are saved automatically. Open the Insight Bank section to browse p
 
 The History section shows your recent generation activity. Expand any entry to see the drafts and copy ones you may have skipped initially.
 
+### Dark Mode
+
+Click the moon/sun icon in the top-right corner to toggle dark mode. Your preference is saved automatically and persists across sessions.
+
 ## Customization
 
 ### Content Schedule
