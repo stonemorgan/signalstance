@@ -297,3 +297,208 @@ def get_week_stats(start_date=None):
     stats["filled"] = stats["draft_ready"] + stats["scheduled"] + stats["published"]
     conn.close()
     return stats
+
+
+# ── Feed management ──────────────────────────────────────────────────────────
+
+def seed_default_feeds():
+    """Insert default feeds if they don't already exist (matched by URL)."""
+    from feeds import DEFAULT_FEEDS
+
+    conn = get_connection()
+    for feed in DEFAULT_FEEDS:
+        existing = conn.execute("SELECT id FROM feeds WHERE url = ?", (feed["url"],)).fetchone()
+        if not existing:
+            conn.execute(
+                "INSERT INTO feeds (url, name, category, weight, enabled) VALUES (?, ?, ?, ?, ?)",
+                (feed["url"], feed["name"], feed["category"], feed["weight"], 1 if feed["enabled"] else 0),
+            )
+    conn.commit()
+    conn.close()
+
+
+def get_feeds(enabled_only=True):
+    conn = get_connection()
+    if enabled_only:
+        rows = conn.execute("SELECT * FROM feeds WHERE enabled = 1 ORDER BY category, name").fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM feeds ORDER BY category, name").fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def add_feed(url, name, category, weight=1.0):
+    conn = get_connection()
+    existing = conn.execute("SELECT id FROM feeds WHERE url = ?", (url,)).fetchone()
+    if existing:
+        conn.close()
+        return None, "A feed with this URL already exists"
+    cursor = conn.execute(
+        "INSERT INTO feeds (url, name, category, weight, enabled) VALUES (?, ?, ?, ?, 1)",
+        (url, name, category, weight),
+    )
+    feed_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return feed_id, None
+
+
+def update_feed(feed_id, enabled=None, name=None, category=None, weight=None):
+    conn = get_connection()
+    updates = []
+    params = []
+    if enabled is not None:
+        updates.append("enabled = ?")
+        params.append(1 if enabled else 0)
+    if name is not None:
+        updates.append("name = ?")
+        params.append(name)
+    if category is not None:
+        updates.append("category = ?")
+        params.append(category)
+    if weight is not None:
+        updates.append("weight = ?")
+        params.append(weight)
+    if not updates:
+        conn.close()
+        return
+    params.append(feed_id)
+    conn.execute(f"UPDATE feeds SET {', '.join(updates)} WHERE id = ?", params)
+    conn.commit()
+    conn.close()
+
+
+def delete_feed(feed_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM feed_articles WHERE feed_id = ?", (feed_id,))
+    conn.execute("DELETE FROM feeds WHERE id = ?", (feed_id,))
+    conn.commit()
+    conn.close()
+
+
+def update_feed_fetch_status(feed_id, last_fetched_at=None, last_error=None):
+    conn = get_connection()
+    if last_fetched_at:
+        conn.execute(
+            "UPDATE feeds SET last_fetched_at = ?, last_error = NULL WHERE id = ?",
+            (last_fetched_at, feed_id),
+        )
+    if last_error:
+        conn.execute(
+            "UPDATE feeds SET last_error = ? WHERE id = ?",
+            (last_error, feed_id),
+        )
+    conn.commit()
+    conn.close()
+
+
+# ── Article management ───────────────────────────────────────────────────────
+
+def save_articles(feed_id, articles):
+    """Bulk insert articles, skipping duplicates by URL. Returns count of new articles."""
+    conn = get_connection()
+    new_count = 0
+    for article in articles:
+        url = article.get("url", "")
+        if not url:
+            continue
+        existing = conn.execute("SELECT id FROM feed_articles WHERE url = ?", (url,)).fetchone()
+        if existing:
+            continue
+        conn.execute(
+            """INSERT INTO feed_articles (feed_id, title, url, summary, author, published_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (feed_id, article["title"], url, article.get("summary", ""),
+             article.get("author"), article.get("published_at")),
+        )
+        new_count += 1
+    conn.commit()
+    conn.close()
+    return new_count
+
+
+def get_recent_articles(limit=50, min_relevance=None, unused_only=True, category=None):
+    conn = get_connection()
+    query = """SELECT fa.*, f.name AS feed_name, f.category AS feed_category, f.weight
+               FROM feed_articles fa
+               JOIN feeds f ON fa.feed_id = f.id
+               WHERE fa.dismissed = 0"""
+    params = []
+
+    if unused_only:
+        query += " AND fa.used = 0"
+    if min_relevance is not None:
+        query += " AND fa.relevance_score >= ?"
+        params.append(min_relevance)
+    if category:
+        query += " AND f.category = ?"
+        params.append(category)
+
+    query += " ORDER BY fa.published_at DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def mark_article_used(article_id):
+    conn = get_connection()
+    conn.execute("UPDATE feed_articles SET used = 1 WHERE id = ?", (article_id,))
+    conn.commit()
+    conn.close()
+
+
+def mark_article_dismissed(article_id):
+    conn = get_connection()
+    conn.execute("UPDATE feed_articles SET dismissed = 1 WHERE id = ?", (article_id,))
+    conn.commit()
+    conn.close()
+
+
+def update_article_relevance(article_id, score, reason):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE feed_articles SET relevance_score = ?, relevance_reason = ? WHERE id = ?",
+        (score, reason, article_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_article_by_id(article_id):
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT fa.*, f.name AS feed_name, f.category AS feed_category, f.weight
+           FROM feed_articles fa
+           JOIN feeds f ON fa.feed_id = f.id
+           WHERE fa.id = ?""",
+        (article_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_feed_stats():
+    conn = get_connection()
+    total_feeds = conn.execute("SELECT COUNT(*) FROM feeds").fetchone()[0]
+    enabled_feeds = conn.execute("SELECT COUNT(*) FROM feeds WHERE enabled = 1").fetchone()[0]
+    total_articles = conn.execute("SELECT COUNT(*) FROM feed_articles").fetchone()[0]
+    articles_7d = conn.execute(
+        "SELECT COUNT(*) FROM feed_articles WHERE fetched_at >= datetime('now', '-7 days')"
+    ).fetchone()[0]
+    high_relevance = conn.execute(
+        "SELECT COUNT(*) FROM feed_articles WHERE relevance_score >= 0.7"
+    ).fetchone()[0]
+    used_count = conn.execute(
+        "SELECT COUNT(*) FROM feed_articles WHERE used = 1"
+    ).fetchone()[0]
+    conn.close()
+    return {
+        "total_feeds": total_feeds,
+        "enabled_feeds": enabled_feeds,
+        "total_articles": total_articles,
+        "articles_last_7_days": articles_7d,
+        "high_relevance": high_relevance,
+        "used_for_content": used_count,
+    }

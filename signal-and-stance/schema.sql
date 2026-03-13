@@ -35,3 +35,31 @@ CREATE TABLE IF NOT EXISTS calendar_slots (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (generation_id) REFERENCES generations(id)
 );
+
+CREATE TABLE IF NOT EXISTS feeds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    weight REAL NOT NULL DEFAULT 1.0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_fetched_at TIMESTAMP,
+    last_error TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS feed_articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feed_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    summary TEXT,
+    author TEXT,
+    published_at TIMESTAMP,
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    relevance_score REAL,
+    relevance_reason TEXT,
+    used INTEGER DEFAULT 0,
+    dismissed INTEGER DEFAULT 0,
+    FOREIGN KEY (feed_id) REFERENCES feeds(id)
+);

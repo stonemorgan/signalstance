@@ -79,6 +79,26 @@ The Calendar tab shows your week laid out with content slots for Monday through 
 
 Slot statuses flow in this order: **empty** → **draft ready** → **scheduled** → **published**. Any slot can also be marked as **skipped**.
 
+### RSS Feed Scanner
+
+The Feed Scanner pulls articles from 12 curated sources covering executive careers, HR/recruiting, labor market data, leadership, and workplace trends. Articles are scored for relevance to Dana's niche using Claude.
+
+**API endpoints:**
+
+- `GET /api/feeds` — list all feeds with status and article counts
+- `POST /api/feeds` — add a new feed (JSON body: `url`, `name`, `category`)
+- `PUT /api/feeds/<id>` — update feed properties (`enabled`, `name`, `category`, `weight`)
+- `DELETE /api/feeds/<id>` — remove a feed and its articles
+- `GET /api/articles` — browse articles (query params: `limit`, `min_relevance`, `category`, `unused_only`)
+- `POST /api/articles/<id>/dismiss` — dismiss an article from the pool
+- `POST /api/feeds/refresh` — fetch all feeds and score new articles
+
+**Auto-refresh:** On startup, feeds are refreshed in the background if they haven't been fetched in over 6 hours.
+
+**Managing feeds:** Edit `feeds.py` to change the default feed list. New feeds added via the API are stored in the database and persist across restarts. Feed URLs are tested on add — if a feed returns an error, it's saved but flagged.
+
+**Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to executive resume writing, LinkedIn optimization, ATS compliance, and senior career strategy. Articles scoring 0.7+ are considered high relevance.
+
 ### Tips for Good Insights
 
 - **Short and specific beats long and vague.** "Executives are burying board experience as a single bullet point" is better than "I've been noticing resume trends lately."
@@ -126,6 +146,12 @@ Each category has its own prompt file in `prompts/`:
 
 The base system prompt requests 3 drafts. To change this, edit the output format section in `prompts/base_system.md`.
 
+### Feed Sources
+
+Edit `feeds.py` to change the default RSS feed list. Each feed has a URL, display name, category tag, and relevance weight (0.0-1.0). Feeds added via `POST /api/feeds` are stored in the database and won't be overwritten by changes to `feeds.py`.
+
+Available categories: `leadership`, `careers`, `executive_careers`, `hr_recruiting`, `labor_data`, `linkedin`, `hr_tech`, `compensation`, `workplace`, `business_news`.
+
 ### Model
 
 The model is set in `config.py` as `ANTHROPIC_MODEL`. Default is `claude-sonnet-4-20250514`.
@@ -165,3 +191,11 @@ Some URLs are behind paywalls or block automated access. Try pasting the article
 ### Slow generation
 
 API calls typically take 5-15 seconds. Autopilot and URL reaction are slower (10-20 seconds) because they include web search. This is normal.
+
+### Feed refresh is slow
+
+A full feed refresh fetches 12 RSS feeds and then scores new articles via the Claude API. This typically takes 30-60 seconds. The startup auto-refresh runs in a background thread so it doesn't block the app.
+
+### A feed stopped working
+
+RSS feed URLs change over time. Use `GET /api/feeds` to check which feeds have errors. Disable broken feeds with `PUT /api/feeds/<id>` (`{"enabled": false}`) or delete them with `DELETE /api/feeds/<id>`. Add replacements with `POST /api/feeds`.

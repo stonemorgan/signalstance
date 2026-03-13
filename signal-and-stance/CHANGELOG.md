@@ -4,6 +4,39 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-13
+
+### Added
+- **RSS Feed Scanner** — curated feed system that pulls articles from 12 high-quality career, leadership, HR, and labor market sources
+- `feeds.py` with default feed list and category definitions covering leadership, careers, executive careers, HR/recruiting, labor data, HR tech, workplace, and business news
+- `feed_scanner.py` module with feed fetching (via `requests` + `feedparser`), Claude-powered relevance scoring, and batch refresh
+- `feeds` and `feed_articles` database tables with full CRUD and deduplication on article URL
+- 9 new database functions: `seed_default_feeds`, `get_feeds`, `add_feed`, `update_feed`, `delete_feed`, `update_feed_fetch_status`, `save_articles`, `get_recent_articles`, `mark_article_used`, `mark_article_dismissed`, `update_article_relevance`, `get_article_by_id`, `get_feed_stats`
+- 7 new API routes:
+  - `GET /api/feeds` — list all feeds with status, article counts, and summary stats
+  - `POST /api/feeds` — add a new feed (immediately fetches to verify)
+  - `PUT /api/feeds/<id>` — update feed properties (enabled, name, category, weight)
+  - `DELETE /api/feeds/<id>` — remove a feed and its articles
+  - `GET /api/articles` — browse articles with filters (limit, min_relevance, category, unused_only)
+  - `POST /api/articles/<id>/dismiss` — soft-dismiss an article from the feed pool
+  - `POST /api/feeds/refresh` — fetch all feeds and score new articles, returns full results summary
+- Relevance scoring via Claude API — each article scored 0.0-1.0 based on relevance to executive resume writing, LinkedIn optimization, and senior career strategy
+- Auto-refresh on startup — background thread checks feed freshness and refreshes if stale (>6 hours)
+- Default feeds seeded automatically on first startup
+- `feedparser>=6.0.0` and `requests>=2.31.0` added to requirements.txt
+
+### Changed
+- Feed fetcher uses `requests` with proper User-Agent header instead of feedparser's default HTTP client (fixes 403 blocks from BLS and other government/corporate sources)
+
+### Fixed
+- 11 of 16 original feed URLs were broken (404, 403, DNS failures, dead domains). Replaced with verified working alternatives:
+  - HBR (404) replaced by McKinsey Insights
+  - SHRM (dead RSS) replaced by HR Dive
+  - ERE (404) replaced by RecruitingDaily
+  - The Muse (503) replaced by Ask a Manager
+  - The Ladders (403) replaced by Inc.
+  - Reuters Business (domain dead since 2020), WSJ Careers (paywall 401), LinkedIn Blog (no RSS), HR Technologist (defunct 404), PayScale (no RSS) — removed and replaced where possible
+
 ## [1.2.1] - 2026-03-13
 
 ### Added

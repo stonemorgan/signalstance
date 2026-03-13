@@ -1,24 +1,35 @@
 import re
+import threading
 from datetime import date, datetime, timedelta
 
 from flask import Flask, jsonify, render_template, request
 
 from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT, SUGGESTED_TIMES
 from database import (
+    add_feed,
     assign_draft_to_slot,
     clear_slot,
+    delete_feed,
     generate_week_slots,
+    get_article_by_id,
+    get_feed_stats,
+    get_feeds,
     get_generation_history,
     get_insights,
+    get_recent_articles,
     get_week_slots,
     get_week_stats,
     init_db,
+    mark_article_dismissed,
     mark_generation_copied,
     save_generation,
     save_insight,
+    seed_default_feeds,
+    update_feed,
     update_slot_status,
 )
 from engine import generate_autopilot, generate_from_url, generate_posts
+from feed_scanner import fetch_feed, refresh_and_score
 
 app = Flask(__name__)
 
@@ -421,6 +432,128 @@ def calendar_skip():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ── Feed & Article Routes ────────────────────────────────────────────────────
+
+
+@app.route("/api/feeds")
+def feeds_list():
+    try:
+        feeds = get_feeds(enabled_only=False)
+        from database import get_connection
+        conn = get_connection()
+        for feed in feeds:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM feed_articles WHERE feed_id = ?", (feed["id"],)
+            ).fetchone()[0]
+            feed["article_count"] = count
+            feed["enabled"] = bool(feed["enabled"])
+        conn.close()
+        stats = get_feed_stats()
+        return jsonify({"success": True, "feeds": feeds, "stats": stats})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/feeds", methods=["POST"])
+def feeds_add():
+    try:
+        data = request.get_json(silent=True) or {}
+        url = data.get("url", "").strip()
+        name = data.get("name", "").strip()
+        category = data.get("category", "careers").strip()
+        weight = float(data.get("weight", 1.0))
+
+        if not url or not name:
+            return jsonify({"success": False, "error": "url and name are required"}), 400
+
+        feed_id, error = add_feed(url, name, category, weight)
+        if error:
+            return jsonify({"success": False, "error": error}), 400
+
+        # Immediately fetch the new feed to verify it works
+        feed = {"id": feed_id, "url": url, "name": name, "category": category, "weight": weight}
+        fetch_result = fetch_feed(feed)
+
+        return jsonify({
+            "success": True,
+            "feed_id": feed_id,
+            "fetch_result": fetch_result,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/feeds/<int:feed_id>", methods=["PUT"])
+def feeds_update(feed_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        update_feed(
+            feed_id,
+            enabled=data.get("enabled"),
+            name=data.get("name"),
+            category=data.get("category"),
+            weight=data.get("weight"),
+        )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/feeds/<int:feed_id>", methods=["DELETE"])
+def feeds_delete(feed_id):
+    try:
+        delete_feed(feed_id)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/articles")
+def articles_list():
+    try:
+        limit = min(int(request.args.get("limit", 30)), 200)
+        min_relevance = request.args.get("min_relevance")
+        if min_relevance is not None:
+            min_relevance = float(min_relevance)
+        category = request.args.get("category")
+        unused_only = request.args.get("unused_only", "true").lower() != "false"
+
+        articles = get_recent_articles(
+            limit=limit,
+            min_relevance=min_relevance,
+            unused_only=unused_only,
+            category=category,
+        )
+        return jsonify({"success": True, "articles": articles})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/articles/<int:article_id>/dismiss", methods=["POST"])
+def articles_dismiss(article_id):
+    try:
+        mark_article_dismissed(article_id)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/feeds/refresh", methods=["POST"])
+def feeds_refresh():
+    try:
+        results = refresh_and_score()
+        return jsonify({
+            "success": True,
+            "fetch_results": results["fetch"],
+            "scoring_results": {
+                "scored": results["scored"],
+                "high_relevance": results["high_relevance"],
+            },
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 def _handle_api_error(e):
     """Handle API errors with user-friendly messages."""
     error_str = str(e)
@@ -450,8 +583,38 @@ def _handle_api_error(e):
     return jsonify({"success": False, "error": f"Generation failed: {error_str}"}), 500
 
 
-# Initialize database on startup
+# Initialize database and seed feeds on startup
 init_db()
+seed_default_feeds()
+
+
+def maybe_refresh_feeds():
+    """Refresh feeds if stale (>6 hours since last fetch). Run in background thread."""
+    try:
+        feeds = get_feeds(enabled_only=True)
+        if not feeds:
+            return
+
+        fetched_times = [f["last_fetched_at"] for f in feeds if f["last_fetched_at"]]
+        if not fetched_times:
+            print("  [Feed Scanner] No feeds have been fetched yet — running initial refresh...")
+            results = refresh_and_score()
+            print(f"  [Feed Scanner] Done: {results['fetch']['successful']} feeds fetched, "
+                  f"{results['fetch']['new_articles']} new articles, {results['scored']} scored")
+            return
+
+        last_fetched = max(fetched_times)
+        last_dt = datetime.fromisoformat(last_fetched)
+        if datetime.now() - last_dt > timedelta(hours=6):
+            print("  [Feed Scanner] Feeds are stale — refreshing in background...")
+            results = refresh_and_score()
+            print(f"  [Feed Scanner] Done: {results['fetch']['successful']} feeds fetched, "
+                  f"{results['fetch']['new_articles']} new articles, {results['scored']} scored")
+        else:
+            print(f"  [Feed Scanner] Feeds are fresh (last fetched: {last_fetched}). Skipping refresh.")
+    except Exception as e:
+        print(f"  [Feed Scanner] Background refresh failed: {e}")
+
 
 if __name__ == "__main__":
     if API_KEY_MISSING:
@@ -461,5 +624,8 @@ if __name__ == "__main__":
         print("  ANTHROPIC_API_KEY=your-key-here")
         print("=" * 60 + "\n")
         print("  Starting anyway — the app will show setup instructions.\n")
+
+    # Auto-refresh feeds in background if stale
+    threading.Thread(target=maybe_refresh_feeds, daemon=True).start()
 
     app.run(debug=True, port=FLASK_PORT)
