@@ -49,7 +49,7 @@ python app.py
 
 **URL Reaction:** Paste a link to an article or post that sparked a thought. The tool reads the content and generates your professional reaction — not a summary.
 
-**Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool draws from your curated RSS feed pool — picking the highest-relevance unused article and generating Dana's professional reaction. If no feed articles are available, it falls back to web search automatically. A status line below the button shows how many curated articles are available.
+**Autopilot:** Click "Generate an idea for me" when you have no specific observation. The tool draws from your curated RSS feed pool — picking the highest-relevance unused article and generating a professional reaction. If no feed articles are available, it falls back to web search automatically. A status line below the button shows how many curated articles are available.
 
 3. Review the 3 draft variations
 4. Click "Copy" on the best one, or click **"Add to Calendar"** to assign the draft to an empty calendar slot
@@ -99,7 +99,7 @@ The Feed tab lets you browse curated articles and generate content from them dir
 
 ### RSS Feed Scanner
 
-The Feed Scanner pulls articles from 12 curated sources covering executive careers, HR/recruiting, labor market data, leadership, and workplace trends. Articles are scored for relevance to Dana's niche using Claude.
+The Feed Scanner pulls articles from curated RSS sources and scores them for relevance to the business owner's niche using Claude. Feed categories and scoring criteria are configured in `business_config.json`.
 
 **API endpoints:**
 
@@ -118,7 +118,7 @@ The Feed Scanner pulls articles from 12 curated sources covering executive caree
 
 **Managing feeds:** Edit `feeds.py` to change the default feed list. New feeds added via the API or the Feed tab's management view are stored in the database and persist across restarts. Feed URLs are tested on add — if a feed returns an error, it's saved but flagged.
 
-**Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to executive resume writing, LinkedIn optimization, ATS compliance, and senior career strategy. Articles scoring 0.7+ are considered high relevance and shown with a green badge in the Feed tab.
+**Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to the business owner's niche (configured in `business_config.json` under `scoring` and `owner`). Articles scoring 0.7+ are considered high relevance and shown with a green badge in the Feed tab.
 
 ### Carousel Generation
 
@@ -159,7 +159,7 @@ Each PDF contains:
 - **Content slides** — template-specific layouts matching the three content templates (tips with watermark numbers, before/after with red/green comparison boxes, myth/reality with pill dividers)
 - **CTA slide** — author credentials, LinkedIn URL, and call-to-action in a teal rounded box
 
-All visual styling (colors, fonts, identity) is sourced from `brand.py`. PDFs are saved to `generated_carousels/` and automatically cleaned up after 30 days.
+All visual styling (colors, fonts, identity) is sourced from `business_config.json` via `brand.py`. PDFs are saved to `generated_carousels/` and automatically cleaned up after 30 days.
 
 ### Tips for Good Insights
 
@@ -181,13 +181,19 @@ Click the moon/sun icon in the top-right corner to toggle dark mode. Your prefer
 
 ## Customization
 
-### Content Schedule
+### Business Configuration
 
-Edit the `CONTENT_SCHEDULE` dict in `config.py` to change the daily content type suggestions. Days are numbered 0 (Monday) through 4 (Friday).
+All business identity, brand, schedule, and domain settings live in a single file: **`business_config.json`**. Edit this file to change:
 
-### Suggested Posting Times
+- **Owner identity** — name, title, business name, URL, credentials, niche summary, audience
+- **Platform** — target platform name, post word range, carousel dimensions
+- **Brand** — color palette, typography, semantic colors
+- **Content** — category definitions, carousel templates, default CTAs
+- **Schedule** — weekly content types, daily suggestions, suggested posting times, timezone
+- **Feed categories** — category labels and descriptions for RSS feed classification
+- **Scoring criteria** — relevance scoring thresholds and prompt templates
 
-Edit the `SUGGESTED_TIMES` dict in `config.py` to change the default time suggestions shown in the calendar. These are display-only — they remind you what time to schedule on LinkedIn.
+The rest of the codebase reads from this config automatically. `brand.py`, `config.py`, and `feeds.py` all derive their values from `business_config.json` at import time.
 
 ### Voice Profile
 
@@ -208,10 +214,6 @@ Each category has its own prompt file in `prompts/`:
 - `carousel_beforeafter.md` — Before/After carousel content generation
 - `carousel_mythreality.md` — Myth vs Reality carousel content generation
 
-### Brand Configuration
-
-Edit `brand.py` to change carousel visual branding: colors, fonts, Dana's identity info, and slide dimensions. These settings are used by `carousel_renderer.py` when generating PDF carousels.
-
 ### Number of Drafts
 
 The base system prompt requests 3 drafts. To change this, edit the output format section in `prompts/base_system.md`.
@@ -220,11 +222,11 @@ The base system prompt requests 3 drafts. To change this, edit the output format
 
 Edit `feeds.py` to change the default RSS feed list. Each feed has a URL, display name, category tag, and relevance weight (0.0-1.0). Feeds added via `POST /api/feeds` are stored in the database and won't be overwritten by changes to `feeds.py`.
 
-Available categories: `leadership`, `careers`, `executive_careers`, `hr_recruiting`, `labor_data`, `linkedin`, `hr_tech`, `compensation`, `workplace`, `business_news`.
+Feed categories are defined in `business_config.json` under `feeds.categories`.
 
 ### Model
 
-The model is set in `config.py` as `ANTHROPIC_MODEL`. Default is `claude-sonnet-4-20250514`.
+The default model is `claude-sonnet-4-20250514`. Override it by setting `ANTHROPIC_MODEL` in your `.env` file. `MAX_TOKENS` and `FLASK_PORT` are also overridable via environment variables.
 
 ## Troubleshooting
 
@@ -244,7 +246,7 @@ Verify your key at [console.anthropic.com](https://console.anthropic.com). Keys 
 
 ### Port already in use
 
-Another app is using port 5000. Either stop that app, or change `FLASK_PORT` in `config.py`.
+Another app is using port 5000. Either stop that app, or set `FLASK_PORT` in your `.env` file.
 
 ### "Database is locked"
 

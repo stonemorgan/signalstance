@@ -4,6 +4,22 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-03-15
+
+### Added
+- **`business_config.json`** — single source of truth for all business identity, brand colors, typography, content schedule, posting times, feed categories, scoring criteria, default CTAs, and platform settings. Changing the business owner, brand, schedule, or domain is now a single-file edit.
+- **`business_config.py`** — loader module that reads `business_config.json` at import time and exposes convenience accessors (`OWNER`, `PLATFORM`, `BRAND_COLORS`, `CONTENT`, `SCHEDULE`, `FEEDS_CONFIG`, `SCORING`, `APP_NAME`). Includes `{section.key}` template interpolation for scoring strings.
+
+### Changed
+- **`brand.py`** now reads all colors, fonts, author identity, and slide dimensions from `business_config.json` instead of hardcoding them. The `BRAND` dict structure is preserved — no downstream changes needed.
+- **`config.py`** now reads `CONTENT_SCHEDULE`, `SUGGESTED_TIMES`, and `DATABASE_PATH` from `business_config.json`. Integer keys (0=Monday through 4=Friday) are preserved for backward compatibility. `ANTHROPIC_MODEL`, `MAX_TOKENS`, and `FLASK_PORT` are now overridable via environment variables.
+- **`feeds.py`** — `FEED_CATEGORIES` dict now reads from `business_config.json`. `DEFAULT_FEEDS` list remains in this file.
+- **`feed_scanner.py`** — scoring system prompt is now built dynamically from `business_config.json` owner identity and scoring criteria instead of a hardcoded paragraph.
+- **`engine.py`** — replaced 8 hardcoded business-specific strings with config reads: autopilot topic description, URL/feed reaction messages, default relevance reason, and 3 CTA defaults.
+- **`app.py`** — app name read from config and passed to the template via `app_name` variable; fallback string uses config.
+- **`templates/index.html`** — 3 hardcoded "Signal & Stance" references replaced with `{{ app_name }}` Jinja2 variable.
+- **`carousel_renderer.py`** — default CTA fallback now reads from `business_config.json` instead of a hardcoded string.
+
 ## [1.8.0] - 2026-03-13
 
 ### Added
