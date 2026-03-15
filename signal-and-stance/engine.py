@@ -3,12 +3,30 @@ import re
 
 import anthropic
 
-from business_config import OWNER, PLATFORM, CONTENT
+from business_config import BUSINESS, OWNER, PLATFORM, CONTENT
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, MAX_TOKENS
 from database import get_recent_articles, mark_article_used
 from feeds import FEED_CATEGORIES
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+
+def _flatten_config(d, prefix=""):
+    """Flatten nested dict to dot-notation keys: {'owner.name': 'Dana Wang', ...}"""
+    flat = {}
+    for k, v in d.items():
+        key = f"{prefix}{k}" if prefix else k
+        if isinstance(v, dict):
+            flat.update(_flatten_config(v, f"{key}."))
+        elif isinstance(v, list):
+            flat[key] = ", ".join(str(i) for i in v)
+        else:
+            flat[key] = str(v)
+    return flat
+
+
+_FLAT_CONFIG = _flatten_config(BUSINESS)
+
 
 CATEGORY_FILE_MAP = {
     "pattern": "prompts/category_pattern.md",
@@ -19,9 +37,16 @@ CATEGORY_FILE_MAP = {
 
 
 def load_prompt(filepath):
+    """Load a prompt .md file and substitute {{key}} placeholders from business config."""
     prompt_path = os.path.join(os.path.dirname(__file__), filepath)
     with open(prompt_path, "r", encoding="utf-8") as f:
-        return f.read()
+        template = f.read()
+
+    def _replacer(match):
+        key = match.group(1).strip()
+        return _FLAT_CONFIG.get(key, match.group(0))
+
+    return re.sub(r"\{\{(.+?)\}\}", _replacer, template)
 
 
 def generate_posts(category, raw_input, source_url=None):

@@ -1,9 +1,10 @@
 """Test the content generation engine with all 4 categories."""
 
+import re
 import sys
 import textwrap
 
-from engine import generate_posts
+from engine import generate_posts, load_prompt
 
 TEST_CASES = [
     {
@@ -25,6 +26,46 @@ TEST_CASES = [
 ]
 
 SEPARATOR = "=" * 80
+
+ALL_PROMPT_FILES = [
+    "prompts/base_system.md",
+    "prompts/autopilot.md",
+    "prompts/category_pattern.md",
+    "prompts/category_faq.md",
+    "prompts/category_noticed.md",
+    "prompts/category_hottake.md",
+    "prompts/url_react.md",
+    "prompts/feed_react.md",
+    "prompts/carousel_tips.md",
+    "prompts/carousel_beforeafter.md",
+    "prompts/carousel_mythreality.md",
+]
+
+
+def test_template_substitution():
+    """Verify no unresolved {{}} placeholders remain after loading."""
+    print(SEPARATOR)
+    print("TEMPLATE SUBSTITUTION TEST")
+    print(SEPARATOR)
+
+    all_ok = True
+    for pf in ALL_PROMPT_FILES:
+        content = load_prompt(pf)
+        unresolved = re.findall(r"\{\{.+?\}\}", content)
+        if unresolved:
+            print(f"  FAIL: {pf} has unresolved placeholders: {unresolved}")
+            all_ok = False
+        else:
+            print(f"  OK: {pf}")
+
+    if all_ok:
+        print("\nALL TEMPLATES RESOLVED SUCCESSFULLY")
+    else:
+        print("\nTEMPLATE ERRORS FOUND — fix before proceeding")
+
+    print(SEPARATOR)
+    print()
+    return all_ok
 
 
 def count_words(text):
@@ -127,4 +168,6 @@ def run_tests():
 
 
 if __name__ == "__main__":
+    if not test_template_substitution():
+        sys.exit(1)
     run_tests()

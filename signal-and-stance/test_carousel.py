@@ -7,7 +7,9 @@ import os
 # Ensure we can import from the project
 sys.path.insert(0, os.path.dirname(__file__))
 
-from engine import generate_carousel_content
+import re
+
+from engine import generate_carousel_content, load_prompt
 
 
 def print_separator(label):
@@ -138,7 +140,39 @@ def run_test(template_type, input_text, validator):
     return "error" not in result and len(issues) == 0
 
 
+CAROUSEL_PROMPT_FILES = [
+    "prompts/carousel_tips.md",
+    "prompts/carousel_beforeafter.md",
+    "prompts/carousel_mythreality.md",
+]
+
+
+def test_carousel_template_substitution():
+    """Verify no unresolved {{}} placeholders in carousel prompts."""
+    print_separator("TEMPLATE SUBSTITUTION TEST")
+
+    all_ok = True
+    for pf in CAROUSEL_PROMPT_FILES:
+        content = load_prompt(pf)
+        unresolved = re.findall(r"\{\{.+?\}\}", content)
+        if unresolved:
+            print(f"  FAIL: {pf} has unresolved placeholders: {unresolved}")
+            all_ok = False
+        else:
+            print(f"  OK: {pf}")
+
+    if all_ok:
+        print("\nALL CAROUSEL TEMPLATES RESOLVED SUCCESSFULLY")
+    else:
+        print("\nTEMPLATE ERRORS FOUND — fix before proceeding")
+
+    return all_ok
+
+
 if __name__ == "__main__":
+    if not test_carousel_template_substitution():
+        sys.exit(1)
+
     results = {}
 
     # Test 1: Tips template
