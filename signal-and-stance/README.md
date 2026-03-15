@@ -195,9 +195,20 @@ All business identity, brand, schedule, and domain settings live in a single fil
 
 The rest of the codebase reads from this config automatically. `brand.py`, `config.py`, and `feeds.py` all derive their values from `business_config.json` at import time.
 
+### Prompt Template System
+
+All 11 prompt files in `prompts/` use `{{key.subkey}}` template variables that are auto-filled from `business_config.json` at load time. For example, `{{owner.name}}` becomes "Dana Wang" and `{{platform.name}}` becomes "LinkedIn."
+
+Each prompt file is divided into two types of sections, marked with HTML comments:
+
+- **`<!-- TEMPLATED -->`** — Identity references (name, credentials, audience, platform) auto-filled from config. No manual editing needed when swapping businesses.
+- **`<!-- AUTHORED SECTION -->`** — Domain-specific voice rules, examples, content arcs, and signature language. These must be manually written for each business domain.
+
+Available template variables include: `{{owner.name}}`, `{{owner.title}}`, `{{owner.business}}`, `{{owner.credentials}}`, `{{owner.audience}}`, `{{owner.audience_examples}}`, `{{owner.specializations}}`, `{{owner.niche_summary}}`, `{{owner.client_outcomes}}`, `{{platform.name}}`, `{{content.default_ctas.tips}}`, and any other dot-notation path into `business_config.json`. List values render as comma-separated strings.
+
 ### Voice Profile
 
-The voice rules live in `prompts/base_system.md`. Edit this file to adjust tone, signature phrases, hard rules, and structural guidelines.
+The voice rules live in `prompts/base_system.md`. The identity paragraph and credentials block are templatized; tone, signature language, hard rules, and structural guidelines are authored content that should be edited manually per business.
 
 ### Category Prompts
 
@@ -213,6 +224,8 @@ Each category has its own prompt file in `prompts/`:
 - `carousel_tips.md` — Numbered Tips carousel content generation
 - `carousel_beforeafter.md` — Before/After carousel content generation
 - `carousel_mythreality.md` — Myth vs Reality carousel content generation
+
+All prompt files use template variables for identity references and `<!-- AUTHORED SECTION -->` markers for domain-specific content that needs manual editing when adapting to a new business.
 
 ### Number of Drafts
 

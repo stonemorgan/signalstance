@@ -4,6 +4,21 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-03-15
+
+### Added
+- **Prompt template engine** — `load_prompt()` in `engine.py` now performs `{{key.subkey}}` placeholder substitution using a flattened version of `business_config.json`. Template variables like `{{owner.name}}`, `{{platform.name}}`, `{{owner.audience}}` are resolved automatically at load time.
+- **`_flatten_config()`** helper that converts the nested config dict into dot-notation keys (e.g., `owner.name`, `content.default_ctas.tips`). List values are auto-joined as comma-separated strings.
+- **`<!-- AUTHORED SECTION -->`** and **`<!-- TEMPLATED -->`** documentation markers in all 11 prompt files. Authored sections contain domain-specific voice rules, examples, and content arcs that must be manually rewritten per business. Templated sections are auto-filled from config.
+- **Template verification tests** in `test_engine.py` and `test_carousel.py` — load all 11 prompt files via `load_prompt()` and assert zero unresolved `{{}}` placeholders remain.
+
+### Changed
+- **`prompts/base_system.md`** — identity paragraph, credentials block, platform references, and audience references in the self-evaluation checklist are now template variables. Voice rules, signature language, hard rules, and example hooks remain as authored content.
+- **`prompts/category_pattern.md`**, **`category_faq.md`**, **`category_noticed.md`**, **`category_hottake.md`** — all owner name references replaced with `{{owner.name}}`; platform references with `{{platform.name}}`. Content arcs, example hooks, and tone descriptions remain as authored content.
+- **`prompts/autopilot.md`** — owner name, audience, niche summary, and expertise references templatized. Search topics and category mapping remain as authored content.
+- **`prompts/url_react.md`** and **`feed_react.md`** — owner name, platform, audience, and niche references templatized. Reaction approaches and feed category calibration remain as authored content.
+- **`prompts/carousel_tips.md`**, **`carousel_beforeafter.md`**, **`carousel_mythreality.md`** — owner name and platform references templatized. Content rules and example outputs remain as authored content.
+
 ## [1.9.0] - 2026-03-15
 
 ### Added
