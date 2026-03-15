@@ -1,0 +1,104 @@
+{
+  "app_name": "My Content Studio",
+  "database_name": "content.db",
+
+  "owner": {
+    "name": "YOUR NAME",
+    "title": "YOUR PROFESSIONAL TITLE",
+    "business": "YOUR BUSINESS NAME",
+    "url": "YOUR WEBSITE OR PROFILE URL",
+    "credentials": ["CREDENTIAL 1", "CREDENTIAL 2"],
+    "niche_summary": "Brief description of your expertise area",
+    "audience": "Description of your target audience",
+    "audience_examples": "Example job titles in your audience",
+    "specializations": ["Specialization 1", "Specialization 2"],
+    "client_outcomes": "Notable outcomes your clients achieve"
+  },
+
+  "platform": {
+    "name": "LinkedIn",
+    "post_word_range": [150, 300],
+    "carousel_dimensions": [1080, 1080],
+    "scheduling_url": "https://linkedin.com/feed"
+  },
+
+  "brand": {
+    "primary": "#1B3A4B",
+    "secondary": "#4A90A4",
+    "accent": "#D4A574",
+    "background": "#FAFAF8",
+    "background_alt": "#F0EDE8",
+    "text_dark": "#2C2C2C",
+    "text_light": "#FFFFFF",
+    "text_muted": "#6B7280",
+    "divider": "#D1D5DB",
+    "negative": "#C0392B",
+    "positive": "#27AE60",
+    "font_heading": "Helvetica-Bold",
+    "font_body": "Helvetica",
+    "font_accent": "Helvetica-Oblique"
+  },
+
+  "content": {
+    "categories": {
+      "pattern": {
+        "label": "Pattern",
+        "prompt_label": "I keep seeing...",
+        "placeholder": "Describe a pattern you keep seeing in your work or industry..."
+      },
+      "faq": {
+        "label": "FAQ",
+        "prompt_label": "Client asked...",
+        "placeholder": "What question do you keep getting asked? What's your take?"
+      },
+      "noticed": {
+        "label": "Noticed",
+        "prompt_label": "Just noticed...",
+        "placeholder": "What did you notice recently that others might have missed?"
+      },
+      "hottake": {
+        "label": "Hot Take",
+        "prompt_label": "Hot take...",
+        "placeholder": "What's your spicy opinion? Why do you believe it?"
+      }
+    },
+    "carousel_templates": ["tips", "beforeafter", "mythreality"],
+    "default_ctas": {
+      "tips": "Follow for more expert insights",
+      "beforeafter": "Save this for later",
+      "mythreality": "Follow for more myth-busting content",
+      "general": "Follow for more expert content"
+    }
+  },
+
+  "schedule": {
+    "days": {
+      "Monday": { "content_type": "Educational / Pattern", "suggestion": "Share an insight from your expertise" },
+      "Tuesday": { "content_type": "Tactical Tip", "suggestion": "Share an actionable tip from your domain" },
+      "Wednesday": { "content_type": "Deep Dive / Story", "suggestion": "Tell a story or go deep on a topic" },
+      "Thursday": { "content_type": "Thought Leadership / Hot Take", "suggestion": "Challenge a common misconception" },
+      "Friday": { "content_type": "Quick Win / Encouragement", "suggestion": "Share a quick, implementable insight" }
+    },
+    "suggested_times": {
+      "Monday": "8:00 AM", "Tuesday": "7:30 AM", "Wednesday": "12:00 PM",
+      "Thursday": "8:00 AM", "Friday": "9:00 AM"
+    },
+    "timezone": "EST"
+  },
+
+  "feeds": {
+    "categories": {
+      "industry": "Your primary industry news",
+      "trends": "Trends and developments in your field",
+      "general": "General business and professional content"
+    }
+  },
+
+  "scoring": {
+    "high_relevance_threshold": 0.7,
+    "medium_relevance_threshold": 0.5,
+    "scoring_description": "Score articles for relevance to {owner.name}'s niche: {owner.niche_summary}.",
+    "scoring_high": "Directly relevant to {owner.niche_summary}",
+    "scoring_low": "Unrelated to {owner.name}'s expertise"
+  }
+}

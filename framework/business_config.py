@@ -1,15 +1,27 @@
 """Centralized business configuration loader.
 
-Reads business_config.json once at import time and exposes the config
-as a module-level dict. All business-specific identity, brand, domain,
-and scheduling values live in that JSON file.
+Reads business_config.json from the active tenant directory.
+The tenant directory is specified by the SIGNALSTANCE_TENANT_DIR environment variable.
+Falls back to looking in the same directory as this file (for backwards compatibility).
 """
 
 import json
 import os
 import re
 
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "business_config.json")
+# Determine tenant directory
+TENANT_DIR = os.environ.get("SIGNALSTANCE_TENANT_DIR")
+if not TENANT_DIR:
+    # Backwards compatibility: look in same directory as this file
+    TENANT_DIR = os.path.dirname(__file__)
+
+_CONFIG_PATH = os.path.join(TENANT_DIR, "business_config.json")
+
+if not os.path.exists(_CONFIG_PATH):
+    raise FileNotFoundError(
+        f"business_config.json not found at {_CONFIG_PATH}. "
+        f"Set SIGNALSTANCE_TENANT_DIR to the tenant directory."
+    )
 
 with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
     BUSINESS = json.load(_f)

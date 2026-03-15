@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.db
+
+# Tenant-specific generated files
+tenants/*/generated_carousels/*.pdf
+tenants/*/*.db
+
+# Framework-level (backwards compatibility)
+framework/generated_carousels/

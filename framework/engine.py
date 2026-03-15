@@ -3,7 +3,7 @@ import re
 
 import anthropic
 
-from business_config import BUSINESS, OWNER, PLATFORM, CONTENT
+from business_config import BUSINESS, OWNER, PLATFORM, CONTENT, TENANT_DIR
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, MAX_TOKENS
 from database import get_recent_articles, mark_article_used
 from feeds import FEED_CATEGORIES
@@ -37,8 +37,19 @@ CATEGORY_FILE_MAP = {
 
 
 def load_prompt(filepath):
-    """Load a prompt .md file and substitute {{key}} placeholders from business config."""
-    prompt_path = os.path.join(os.path.dirname(__file__), filepath)
+    """Load a prompt .md file from the tenant directory (with framework fallback).
+
+    Checks the tenant directory first, then falls back to the framework directory.
+    Substitutes {{key}} placeholders from business config.
+    """
+    # Try tenant directory first
+    tenant_path = os.path.join(TENANT_DIR, filepath)
+    if os.path.exists(tenant_path):
+        prompt_path = tenant_path
+    else:
+        # Fall back to framework directory
+        prompt_path = os.path.join(os.path.dirname(__file__), filepath)
+
     with open(prompt_path, "r", encoding="utf-8") as f:
         template = f.read()
 

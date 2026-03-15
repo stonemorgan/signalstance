@@ -16,7 +16,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import Frame, Paragraph
 
 from brand import BRAND
-from business_config import CONTENT
+from business_config import CONTENT, TENANT_DIR
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -25,7 +25,7 @@ W = BRAND["slide_width"]
 H = BRAND["slide_height"]
 MARGIN = 80
 CONTENT_WIDTH = W - 2 * MARGIN
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "generated_carousels")
+OUTPUT_DIR = os.path.join(TENANT_DIR, "generated_carousels")
 
 # ---------------------------------------------------------------------------
 # Color helpers
