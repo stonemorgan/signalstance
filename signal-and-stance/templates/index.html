@@ -53,23 +53,8 @@
         </div>
         <section class="category-section">
             <h2>What kind of post?</h2>
-            <div class="category-grid">
-                <button class="category-btn" data-category="pattern" data-placeholder="Describe a pattern you keep seeing in your work or industry...">
-                    <strong>Pattern</strong>
-                    <span>A recurring trend you've noticed</span>
-                </button>
-                <button class="category-btn" data-category="faq" data-placeholder="What question do you keep getting asked? What's your take?">
-                    <strong>FAQ</strong>
-                    <span>A question you keep answering</span>
-                </button>
-                <button class="category-btn" data-category="noticed" data-placeholder="What did you notice recently that others might have missed?">
-                    <strong>Noticed</strong>
-                    <span>Something you observed worth sharing</span>
-                </button>
-                <button class="category-btn" data-category="hottake" data-placeholder="What's your spicy opinion? Why do you believe it?">
-                    <strong>Hot Take</strong>
-                    <span>A bold stance you're willing to defend</span>
-                </button>
+            <div class="category-grid" id="category-buttons">
+                <!-- Populated dynamically from /api/config -->
             </div>
         </section>
 
@@ -198,18 +183,9 @@
                     </div>
                     <div id="feed-refresh-status" class="feed-refresh-status hidden"></div>
                     <div class="feed-filter-row">
-                        <select id="feed-category-filter">
+                        <select id="feed-category-filter" class="feed-category-select">
                             <option value="">All categories</option>
-                            <option value="leadership">Leadership</option>
-                            <option value="careers">Careers</option>
-                            <option value="executive_careers">Executive Careers</option>
-                            <option value="hr_recruiting">HR / Recruiting</option>
-                            <option value="labor_data">Labor Data</option>
-                            <option value="linkedin">LinkedIn</option>
-                            <option value="hr_tech">HR Tech</option>
-                            <option value="compensation">Compensation</option>
-                            <option value="workplace">Workplace</option>
-                            <option value="business_news">Business News</option>
+                            <!-- Populated from config -->
                         </select>
                         <label><input type="checkbox" id="feed-relevance-filter"> High relevance only</label>
                         <span class="feed-article-count" id="feed-article-count"></span>
@@ -226,17 +202,8 @@
                 <div class="feed-add-form" id="feed-add-form">
                     <input type="url" id="feed-add-url" placeholder="Feed URL">
                     <input type="text" id="feed-add-name" placeholder="Name">
-                    <select id="feed-add-category">
-                        <option value="leadership">Leadership</option>
-                        <option value="careers" selected>Careers</option>
-                        <option value="executive_careers">Executive Careers</option>
-                        <option value="hr_recruiting">HR / Recruiting</option>
-                        <option value="labor_data">Labor Data</option>
-                        <option value="linkedin">LinkedIn</option>
-                        <option value="hr_tech">HR Tech</option>
-                        <option value="compensation">Compensation</option>
-                        <option value="workplace">Workplace</option>
-                        <option value="business_news">Business News</option>
+                    <select id="feed-add-category" class="feed-category-select">
+                        <!-- Populated from config -->
                     </select>
                     <button class="btn-add-feed" id="feed-add-btn">Add Feed</button>
                     <div class="feed-add-feedback" id="feed-add-feedback"></div>
@@ -293,6 +260,12 @@
             let scrollToSlotId = null;
             let unscheduleNoteSlotId = null;
 
+            // Business config — loaded from backend on page load
+            let APP_CONFIG = null;
+
+            // Maps CONTENT_SCHEDULE types (from business_config.json schedule.days.*.content_type)
+            // to content category keys (from business_config.json content.categories).
+            // Update this mapping if you change content types or categories in business_config.json.
             const contentTypeToCat = {
                 'Educational / Pattern': 'pattern',
                 'Tactical Tip': 'noticed',
@@ -303,7 +276,6 @@
 
             // Elements
             const todayBanner = document.getElementById('today-banner');
-            const categoryBtns = document.querySelectorAll('.category-btn');
             const rawInput = document.getElementById('raw-input');
             const urlInput = document.getElementById('url-input');
             const generateBtn = document.getElementById('generate-btn');
@@ -351,6 +323,100 @@
                 updateGenerateBtn();
             });
 
+            // ---- Config Loading ----
+
+            async function loadConfig() {
+                try {
+                    const resp = await fetch('/api/config');
+                    APP_CONFIG = await resp.json();
+                    applyConfig();
+                } catch (e) {
+                    console.error('Failed to load config:', e);
+                    APP_CONFIG = {
+                        app_name: 'Signal & Stance',
+                        platform: { name: 'LinkedIn', scheduling_url: 'https://linkedin.com/feed' },
+                        content: {
+                            categories: {
+                                pattern: { label: 'Pattern', placeholder: 'Describe a pattern you keep seeing in your work or industry...' },
+                                faq: { label: 'FAQ', placeholder: 'What question do you keep getting asked? What\'s your take?' },
+                                noticed: { label: 'Noticed', placeholder: 'What did you notice recently that others might have missed?' },
+                                hottake: { label: 'Hot Take', placeholder: 'What\'s your spicy opinion? Why do you believe it?' },
+                            },
+                        },
+                        schedule: { timezone: 'EST' },
+                        feeds: { categories: {} },
+                    };
+                    applyConfig();
+                }
+            }
+
+            function applyConfig() {
+                if (!APP_CONFIG) return;
+
+                // Update page title
+                document.title = APP_CONFIG.app_name;
+
+                // Render dynamic UI components
+                renderCategoryButtons();
+                renderFeedCategoryDropdowns();
+            }
+
+            function selectCategory(key) {
+                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('selected'));
+                const btn = document.querySelector('.category-btn[data-category="' + key + '"]');
+                if (btn) btn.classList.add('selected');
+                selectedCategory = key;
+                const catConfig = APP_CONFIG?.content?.categories?.[key];
+                if (catConfig) {
+                    rawInput.placeholder = catConfig.placeholder;
+                }
+                rawInput.disabled = false;
+                updateGenerateBtn();
+            }
+
+            function renderCategoryButtons() {
+                const container = document.getElementById('category-buttons');
+                if (!container || !APP_CONFIG?.content?.categories) return;
+
+                container.innerHTML = '';
+                for (const [key, cat] of Object.entries(APP_CONFIG.content.categories)) {
+                    const btn = document.createElement('button');
+                    btn.className = 'category-btn';
+                    btn.dataset.category = key;
+                    btn.innerHTML = '<strong>' + escapeHtml(cat.label) + '</strong><span>' + escapeHtml(cat.prompt_label || cat.placeholder) + '</span>';
+                    btn.addEventListener('click', () => {
+                        selectCategory(key);
+                        rawInput.focus();
+                    });
+                    container.appendChild(btn);
+                }
+            }
+
+            function renderFeedCategoryDropdowns() {
+                if (!APP_CONFIG?.feeds?.categories) return;
+
+                document.querySelectorAll('.feed-category-select').forEach(select => {
+                    // Preserve the first "All categories" option if it has value=""
+                    const firstOption = select.querySelector('option[value=""]');
+
+                    select.innerHTML = '';
+                    if (firstOption) select.appendChild(firstOption);
+
+                    for (const [key, description] of Object.entries(APP_CONFIG.feeds.categories)) {
+                        const opt = document.createElement('option');
+                        opt.value = key;
+                        opt.textContent = getCategoryDisplayName(key);
+                        opt.title = description;
+                        select.appendChild(opt);
+                    }
+                });
+            }
+
+            function getCategoryDisplayName(key) {
+                if (!key) return '';
+                return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            }
+
             // Detect platform for shortcut hint
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
             shortcutHint.textContent = isMac ? '\u2318+Enter to generate' : 'Ctrl+Enter to generate';
@@ -365,19 +431,6 @@
                     }
                 })
                 .catch(() => {});
-
-            // Category selection
-            categoryBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    categoryBtns.forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                    selectedCategory = btn.dataset.category;
-                    rawInput.placeholder = btn.dataset.placeholder;
-                    rawInput.disabled = false;
-                    rawInput.focus();
-                    updateGenerateBtn();
-                });
-            });
 
             // Input change listeners
             rawInput.addEventListener('input', updateGenerateBtn);
@@ -994,28 +1047,8 @@
 
                 // Pre-select category if it's a standard one
                 const cat = insight.category;
-                if (['pattern', 'faq', 'noticed', 'hottake'].includes(cat)) {
-                    categoryBtns.forEach(btn => {
-                        btn.classList.remove('selected');
-                        if (btn.dataset.category === cat) {
-                            btn.classList.add('selected');
-                            selectedCategory = cat;
-                            rawInput.placeholder = btn.dataset.placeholder;
-                            rawInput.disabled = false;
-                        }
-                    });
-                } else {
-                    // For autopilot/url_react, default to 'noticed'
-                    categoryBtns.forEach(btn => {
-                        btn.classList.remove('selected');
-                        if (btn.dataset.category === 'noticed') {
-                            btn.classList.add('selected');
-                            selectedCategory = 'noticed';
-                            rawInput.placeholder = btn.dataset.placeholder;
-                            rawInput.disabled = false;
-                        }
-                    });
-                }
+                const validCats = APP_CONFIG?.content?.categories || {};
+                selectCategory(validCats[cat] ? cat : 'noticed');
 
                 // Pre-fill textarea
                 rawInput.value = insight.raw_input;
@@ -1223,11 +1256,11 @@
             }
 
             function formatCategory(cat) {
+                // Check content categories from config first
+                const catConfig = APP_CONFIG?.content?.categories?.[cat];
+                if (catConfig) return catConfig.label;
+                // Fallback for internal categories
                 const map = {
-                    'pattern': 'Pattern',
-                    'faq': 'FAQ',
-                    'noticed': 'Noticed',
-                    'hottake': 'Hot Take',
                     'autopilot': 'Autopilot',
                     'url_react': 'URL React',
                     'feed_react': 'Feed React'
@@ -1456,11 +1489,11 @@
                         const timeEl = document.createElement('div');
                         timeEl.className = 'day-card-time';
                         if (slot.status === 'published') {
-                            timeEl.textContent = 'Published' + (slot.scheduled_time ? ' at ' + slot.scheduled_time + ' EST' : '');
+                            timeEl.textContent = 'Published' + (slot.scheduled_time ? ' at ' + slot.scheduled_time + ' ' + (APP_CONFIG?.schedule?.timezone || 'EST') : '');
                         } else if (slot.status === 'scheduled') {
-                            timeEl.textContent = 'Scheduled for ' + (slot.scheduled_time || slot.suggested_time) + ' EST on LinkedIn';
+                            timeEl.textContent = 'Scheduled for ' + (slot.scheduled_time || slot.suggested_time) + ' ' + (APP_CONFIG?.schedule?.timezone || 'EST') + ' on ' + (APP_CONFIG?.platform?.name || 'LinkedIn');
                         } else {
-                            timeEl.textContent = 'Suggested time: ' + slot.suggested_time + ' EST';
+                            timeEl.textContent = 'Suggested time: ' + slot.suggested_time + ' ' + (APP_CONFIG?.schedule?.timezone || 'EST');
                         }
                         body.appendChild(timeEl);
                     }
@@ -1497,7 +1530,7 @@
                             } else if (slot.status === 'draft_ready') {
                                 const schedBtn = document.createElement('button');
                                 schedBtn.className = 'btn-primary';
-                                schedBtn.textContent = 'Copy & Schedule on LinkedIn \u2197';
+                                schedBtn.textContent = 'Copy & Schedule on ' + (APP_CONFIG?.platform?.name || 'LinkedIn') + ' \u2197';
                                 schedBtn.addEventListener('click', () => doCopyAndSchedule(slot));
 
                                 const changeBtn = document.createElement('button');
@@ -1546,7 +1579,7 @@
                     if (unscheduleNoteSlotId === slot.id) {
                         const note = document.createElement('div');
                         note.className = 'unschedule-note';
-                        note.textContent = 'Remember to also cancel the scheduled post on LinkedIn if you haven\'t already.';
+                        note.textContent = 'Remember to also cancel the scheduled post on ' + (APP_CONFIG?.platform?.name || 'LinkedIn') + ' if you haven\'t already.';
                         card.appendChild(note);
                         unscheduleNoteSlotId = null;
                         setTimeout(() => note.remove(), 6000);
@@ -1594,19 +1627,9 @@
             function doGenerateForSlot(slot) {
                 setSlotContext(slot);
                 switchToTab('create');
-                // Pre-select matching category
                 const cat = contentTypeToCat[slot.content_type] || 'pattern';
-                categoryBtns.forEach(btn => {
-                    btn.classList.remove('selected');
-                    if (btn.dataset.category === cat) {
-                        btn.classList.add('selected');
-                        selectedCategory = cat;
-                        rawInput.placeholder = btn.dataset.placeholder;
-                        rawInput.disabled = false;
-                    }
-                });
+                selectCategory(cat);
                 rawInput.focus();
-                updateGenerateBtn();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
@@ -1697,20 +1720,11 @@
                     item.addEventListener('click', () => {
                         setSlotContext(slot);
                         switchToTab('create');
-                        const cat = ['pattern', 'faq', 'noticed', 'hottake'].includes(insight.category)
-                            ? insight.category : 'noticed';
-                        categoryBtns.forEach(btn => {
-                            btn.classList.remove('selected');
-                            if (btn.dataset.category === cat) {
-                                btn.classList.add('selected');
-                                selectedCategory = cat;
-                                rawInput.placeholder = btn.dataset.placeholder;
-                                rawInput.disabled = false;
-                            }
-                        });
+                        const validCats = APP_CONFIG?.content?.categories || {};
+                        const cat = validCats[insight.category] ? insight.category : 'noticed';
+                        selectCategory(cat);
                         rawInput.value = insight.raw_input;
                         urlInput.value = insight.source_url || '';
-                        updateGenerateBtn();
                         rawInput.focus();
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                     });
@@ -1759,8 +1773,8 @@
                     }).catch(() => {});
                 }
 
-                // Open LinkedIn
-                window.open('https://www.linkedin.com/feed/', '_blank');
+                // Open platform
+                window.open(APP_CONFIG?.platform?.scheduling_url || 'https://www.linkedin.com/feed/', '_blank');
 
                 // Set confirming state and re-render
                 confirmingSlots[slot.id] = { time: slot.suggested_time || '9:00 AM' };
@@ -1778,7 +1792,7 @@
 
                 const hint = document.createElement('div');
                 hint.className = 'schedule-confirm-hint';
-                hint.textContent = 'Paste your post on LinkedIn, then use the clock icon to schedule it.';
+                hint.textContent = 'Paste your post on ' + (APP_CONFIG?.platform?.name || 'LinkedIn') + ', then use the clock icon to schedule it.';
 
                 const timeRow = document.createElement('div');
                 timeRow.className = 'schedule-confirm-time';
@@ -1904,19 +1918,11 @@
                             setSlotContext(slot);
                             switchToTab('create');
                             const cat = slot.draft.insight_category || 'pattern';
-                            const safeCat = ['pattern', 'faq', 'noticed', 'hottake'].includes(cat) ? cat : 'noticed';
-                            categoryBtns.forEach(btn => {
-                                btn.classList.remove('selected');
-                                if (btn.dataset.category === safeCat) {
-                                    btn.classList.add('selected');
-                                    selectedCategory = safeCat;
-                                    rawInput.placeholder = btn.dataset.placeholder;
-                                    rawInput.disabled = false;
-                                }
-                            });
+                            const validCats = APP_CONFIG?.content?.categories || {};
+                            const safeCat = validCats[cat] ? cat : 'noticed';
+                            selectCategory(safeCat);
                             rawInput.value = slot.draft.insight_text || '';
                             urlInput.value = '';
-                            updateGenerateBtn();
                             rawInput.focus();
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                         });
@@ -2061,18 +2067,7 @@
             const feedAddFeedback = document.getElementById('feed-add-feedback');
             const autopilotStatus = document.getElementById('autopilot-status');
 
-            const feedCatLabels = {
-                'leadership': 'Leadership',
-                'careers': 'Careers',
-                'executive_careers': 'Exec Careers',
-                'hr_recruiting': 'HR/Recruiting',
-                'labor_data': 'Labor Data',
-                'linkedin': 'LinkedIn',
-                'hr_tech': 'HR Tech',
-                'compensation': 'Compensation',
-                'workplace': 'Workplace',
-                'business_news': 'Business News'
-            };
+            // Feed category display names — derived dynamically from config via getCategoryDisplayName()
 
             // Toggle between article view and manage view
             feedManageLink.addEventListener('click', () => {
@@ -2165,7 +2160,7 @@
 
                     const catTag = document.createElement('span');
                     catTag.className = 'feed-cat-tag feed-cat-' + (article.feed_category || '');
-                    catTag.textContent = feedCatLabels[article.feed_category] || article.feed_category || '';
+                    catTag.textContent = getCategoryDisplayName(article.feed_category);
                     meta.appendChild(catTag);
 
                     if (article.published_at) {
@@ -2392,7 +2387,7 @@
                     nameEl.textContent = feed.name + ' ';
                     const catTag = document.createElement('span');
                     catTag.className = 'feed-cat-tag feed-cat-' + (feed.category || '');
-                    catTag.textContent = feedCatLabels[feed.category] || feed.category || '';
+                    catTag.textContent = getCategoryDisplayName(feed.category);
                     nameEl.appendChild(catTag);
                     info.appendChild(nameEl);
 
@@ -2523,6 +2518,9 @@
 
             // Load autopilot status on page load
             loadAutopilotStatus();
+
+            // Load business config and apply to UI
+            loadConfig();
         })();
     </script>
     {% endif %}

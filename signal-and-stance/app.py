@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Flask, jsonify, render_template, request, send_file
 
-from business_config import APP_NAME
+from business_config import APP_NAME, BUSINESS
 from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT, SUGGESTED_TIMES
 from database import (
     add_feed,
@@ -57,6 +57,32 @@ def index():
         return render_template("index.html", api_key_missing=API_KEY_MISSING, app_name=APP_NAME)
     except Exception:
         return f"{APP_NAME} is running."
+
+
+@app.route("/api/config")
+def get_config():
+    """Return business config for frontend use (no API keys or scoring internals)."""
+    return {
+        "app_name": APP_NAME,
+        "owner": {
+            "name": BUSINESS["owner"]["name"],
+            "business": BUSINESS["owner"]["business"],
+        },
+        "platform": {
+            "name": BUSINESS["platform"]["name"],
+            "scheduling_url": BUSINESS["platform"]["scheduling_url"],
+        },
+        "content": {
+            "categories": BUSINESS["content"]["categories"],
+            "carousel_templates": BUSINESS["content"]["carousel_templates"],
+        },
+        "schedule": {
+            "timezone": BUSINESS["schedule"]["timezone"],
+        },
+        "feeds": {
+            "categories": BUSINESS["feeds"]["categories"],
+        },
+    }
 
 
 @app.route("/api/generate", methods=["POST"])
