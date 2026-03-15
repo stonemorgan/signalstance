@@ -1,6 +1,6 @@
 # Signal & Stance
 
-A locally hosted web app that helps generate social media content in a consistent, authentic voice. Built for daily use — go from insight to published post in under 5 minutes. The target platform (LinkedIn, Instagram, etc.) is configurable via `business_config.json`.
+A locally hosted web app that helps generate social media content in a consistent, authentic voice. Built for daily use — go from insight to published post in under 5 minutes. Supports multiple businesses via a tenant directory structure where each business has its own config, prompts, feeds, and database.
 
 ## Setup
 
@@ -12,16 +12,16 @@ A locally hosted web app that helps generate social media content in a consisten
 
 ### Installation
 
-1. Clone or download the project, then navigate to the project directory:
+1. Clone or download the project, then navigate to the project root:
 
 ```bash
-cd signal-and-stance
+cd signalstance
 ```
 
 2. Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+pip install -r framework/requirements.txt
 ```
 
 3. Create a `.env` file in the project root with your API key:
@@ -33,10 +33,59 @@ ANTHROPIC_API_KEY=your-api-key-here
 4. Run the app:
 
 ```bash
-python app.py
+python run.py
+```
+
+This selects the first available tenant automatically. To specify a tenant:
+
+```bash
+python run.py --tenant dana-wang
+```
+
+To see all available tenants:
+
+```bash
+python run.py --list
 ```
 
 5. Open [http://localhost:5000](http://localhost:5000) in your browser.
+
+## Project Structure
+
+```
+signalstance/
+├── framework/                    # Shared, reusable code
+│   ├── app.py                    # Flask routes (24+ endpoints)
+│   ├── engine.py                 # Content generation pipeline
+│   ├── database.py               # SQLite CRUD
+│   ├── carousel_renderer.py      # PDF generation
+│   ├── feed_scanner.py           # RSS fetching + scoring
+│   ├── business_config.py        # Config loader (reads from active tenant)
+│   ├── config.py                 # App settings
+│   ├── brand.py                  # Visual identity for carousels
+│   ├── feeds.py                  # Feed list loader
+│   ├── schema.sql                # Database DDL
+│   ├── requirements.txt          # Python dependencies
+│   ├── templates/index.html      # Frontend SPA
+│   └── static/style.css          # Styling
+│
+├── tenants/
+│   ├── dana-wang/                # Dana Wang / Raleigh Resume tenant
+│   │   ├── business_config.json  # All identity, brand, schedule, scoring
+│   │   ├── feeds.json            # Default RSS feeds
+│   │   ├── prompts/              # 11 voice profile + generation templates
+│   │   ├── signal_stance.db      # SQLite database (auto-created)
+│   │   └── generated_carousels/  # PDF output
+│   │
+│   └── _template/                # Template for new businesses
+│       ├── business_config.json  # Skeleton with placeholders
+│       ├── feeds.json            # Empty feed list
+│       └── prompts/              # 11 template prompts with {{}} vars
+│
+├── run.py                        # Entry point: selects tenant, starts app
+├── setup_tenant.py               # Helper to create new tenants
+└── .env                          # API key (shared across tenants)
+```
 
 ## Usage
 
@@ -53,18 +102,18 @@ python app.py
 
 3. Review the 3 draft variations
 4. Click "Copy" on the best one, or click **"Add to Calendar"** to assign the draft to an empty calendar slot
-5. Paste into LinkedIn, make any final tweaks, and post
+5. Paste into your target platform, make any final tweaks, and post
 
 ### Weekly Workflow (Calendar Tab)
 
-The Calendar tab shows your week laid out with content slots for Monday through Friday. Each day has a content type (Pattern, Tactical Tip, Deep Dive, Hot Take, Quick Win) and a suggested posting time.
+The Calendar tab shows your week laid out with content slots for Monday through Friday. Each day has a content type and a suggested posting time, both configured in `business_config.json`.
 
 1. Switch to the **Calendar** tab and navigate to the week you want to plan
 2. Click **Generate Content** on an empty day — this switches to the Create tab with the matching category pre-selected and a banner showing which day you're generating for
 3. Type your insight and generate as usual. Each draft card now shows a **"Use for [Day]"** button
 4. Click **"Use for [Day]"** on the draft you want — the app assigns it and returns to the Calendar
-5. Click **Copy & Schedule on LinkedIn** — the draft is copied to your clipboard and LinkedIn opens in a new tab
-6. Paste into LinkedIn, use the clock icon to schedule, then return to Signal & Stance
+5. Click **Copy & Schedule** — the draft is copied to your clipboard and the configured platform opens in a new tab
+6. Paste into the platform, schedule it, then return to Signal & Stance
 7. Enter the time you scheduled and click **"I've Scheduled It"** to confirm
 8. After the post goes live, click **Mark as Published** to complete the slot
 
@@ -74,7 +123,7 @@ The Calendar tab shows your week laid out with content slots for Monday through 
 - **Change** — swap the assigned draft for a different variation from the same generation session, or click Regenerate to create new drafts
 - **Clear** — reset a draft ready slot back to empty
 - **Skip / Unskip** — mark days you don't plan to post
-- **Unschedule** — return a scheduled slot to draft ready (remember to also cancel on LinkedIn)
+- **Unschedule** — return a scheduled slot to draft ready (remember to also cancel on the platform)
 - Past weeks display as read-only history
 
 Slot statuses flow in this order: **empty** → **draft ready** → **scheduled** → **published**. Any slot can also be marked as **skipped**.
@@ -114,27 +163,27 @@ The Feed Scanner pulls articles from curated RSS sources and scores them for rel
 
 **Frontend config:** `GET /api/config` — returns a safe subset of `business_config.json` for the frontend (app name, owner, platform, content categories, schedule timezone, feed categories). No API keys or scoring internals are exposed.
 
-**Autopilot integration:** The autopilot (`POST /api/generate/autopilot`) now checks the feed pool first. The response includes a `method` field ("feed" or "web_search") and a `source_article` object when a feed article was used.
+**Autopilot integration:** The autopilot (`POST /api/generate/autopilot`) checks the feed pool first. The response includes a `method` field ("feed" or "web_search") and a `source_article` object when a feed article was used.
 
 **Auto-refresh:** On startup, feeds are refreshed in the background if they haven't been fetched in over 6 hours.
 
-**Managing feeds:** Edit `feeds.py` to change the default feed list. New feeds added via the API or the Feed tab's management view are stored in the database and persist across restarts. Feed URLs are tested on add — if a feed returns an error, it's saved but flagged.
+**Feed sources:** Each tenant has a `feeds.json` file with its default RSS feed list. New feeds added via the API or the Feed tab are stored in the database and persist across restarts.
 
 **Relevance scoring:** Articles are scored 0.0-1.0 based on how relevant they are to the business owner's niche (configured in `business_config.json` under `scoring` and `owner`). Articles scoring 0.7+ are considered high relevance and shown with a green badge in the Feed tab.
 
 ### Carousel Generation
 
-Generate branded LinkedIn carousel PDFs directly from the app. Carousels are multi-slide PDF documents that display as swipeable card decks when uploaded to LinkedIn as document posts.
+Generate branded carousel PDFs directly from the app. Carousels are multi-slide PDF documents that display as swipeable card decks when uploaded as document posts.
 
 1. Select a category and type your insight as usual
 2. Switch the **Output** toggle from "Text Post" to **"Carousel"**
 3. Choose a template:
    - **Numbered Tips** — "7 mistakes", "5 strategies" — one tip per slide with headline + body
-   - **Before / After** — weak vs strong resume examples side by side
+   - **Before / After** — weak vs strong examples side by side
    - **Myth vs Reality** — debunk common misconceptions with expert corrections
 4. Click **"Generate Carousel"**
 5. Review the result card showing the carousel title, slide preview strip, and full slide content
-6. Click **"Download PDF"** to get the file, then upload it to LinkedIn as a document post
+6. Click **"Download PDF"** to get the file, then upload it to your platform as a document post
 7. Click **"Regenerate Content"** if you want different slide content with the same template
 
 Carousels also appear in the History section with a "Carousel" tag and a download link. Old PDFs are automatically cleaned up after 30 days.
@@ -144,24 +193,6 @@ Carousels also appear in the History section with a "Carousel" tag and a downloa
 - `POST /api/generate/carousel` — generate a carousel (JSON body: `category`, `raw_input`, `template_type`). Returns carousel info with `pdf_url`, `slides_preview`, and metadata.
 - `GET /api/carousel/download/<generation_id>` — download the generated PDF file
 - `POST /api/generate/carousel/regenerate` — regenerate with the same insight (JSON body: `insight_id`, `template_type`)
-
-### PDF Carousel Rendering
-
-Render structured carousel content into branded 1080×1080 multi-page PDFs using `carousel_renderer.py`.
-
-```python
-from carousel_renderer import render_carousel
-
-result = render_carousel(parsed_content, "tips")
-# result = {"success": True, "path": "generated_carousels/carousel_tips_1234.pdf", "file_size": 7611, "page_count": 7}
-```
-
-Each PDF contains:
-- **Cover slide** — navy background with gold accent bar, title (64pt), subtitle, and author footer
-- **Content slides** — template-specific layouts matching the three content templates (tips with watermark numbers, before/after with red/green comparison boxes, myth/reality with pill dividers)
-- **CTA slide** — author credentials, LinkedIn URL, and call-to-action in a teal rounded box
-
-All visual styling (colors, fonts, identity) is sourced from `business_config.json` via `brand.py`. PDFs are saved to `generated_carousels/` and automatically cleaned up after 30 days.
 
 ### Tips for Good Insights
 
@@ -181,25 +212,64 @@ The History section shows your recent generation activity. Expand any entry to s
 
 Click the moon/sun icon in the top-right corner to toggle dark mode. Your preference is saved automatically and persists across sessions.
 
+## Multi-Tenant Setup
+
+Signal & Stance supports running the same framework code for multiple businesses. Each business gets its own tenant directory with config, prompts, feeds, and data.
+
+### Creating a New Tenant
+
+```bash
+python setup_tenant.py my-business
+```
+
+This copies the `tenants/_template/` skeleton into `tenants/my-business/`. Then:
+
+1. **Edit `business_config.json`** — fill in owner identity, platform, brand colors, schedule, feed categories, and scoring criteria
+2. **Add RSS feeds to `feeds.json`** — add feed URLs relevant to your niche
+3. **Write `prompts/base_system.md`** — the most important file. Define the voice, tone, signature language, and hard rules. Template variables (`{{owner.name}}`, etc.) are auto-filled; the `<!-- AUTHORED SECTION -->` areas must be written by hand
+4. **Customize remaining prompt files** — each category, autopilot, reaction, and carousel prompt has authored sections that define the content strategy for your domain
+5. **Run:** `python run.py --tenant my-business`
+
+### Tenant Directory Contents
+
+Each tenant directory contains:
+
+- `business_config.json` — all identity, brand, schedule, scoring configuration
+- `feeds.json` — default RSS feed list (URL, name, category, weight)
+- `prompts/` — 11 prompt files with `{{variable}}` placeholders and `<!-- AUTHORED SECTION -->` markers
+- `signal_stance.db` — SQLite database (auto-created on first run)
+- `generated_carousels/` — PDF output directory (auto-created)
+
+### How Tenant Loading Works
+
+The `SIGNALSTANCE_TENANT_DIR` environment variable tells the framework which tenant directory to use. `run.py` sets this automatically. The framework code:
+
+- Loads `business_config.json` from the tenant directory
+- Loads prompts from the tenant directory (with framework fallback)
+- Stores the database in the tenant directory
+- Saves carousel PDFs in the tenant directory
+
+If `SIGNALSTANCE_TENANT_DIR` is not set, the framework falls back to looking in its own directory for backwards compatibility.
+
 ## Customization
 
 ### Business Configuration
 
-All business identity, brand, schedule, and domain settings live in a single file: **`business_config.json`**. Edit this file to change:
+All business identity, brand, schedule, and domain settings live in a single file: **`tenants/<tenant>/business_config.json`**. Edit this file to change:
 
 - **Owner identity** — name, title, business name, URL, credentials, niche summary, audience
-- **Platform** — target platform name, post word range, carousel dimensions
+- **Platform** — target platform name, post word range, carousel dimensions, scheduling URL
 - **Brand** — color palette, typography, semantic colors
 - **Content** — category definitions, carousel templates, default CTAs
 - **Schedule** — weekly content types, daily suggestions, suggested posting times, timezone
 - **Feed categories** — category labels and descriptions for RSS feed classification
 - **Scoring criteria** — relevance scoring thresholds and prompt templates
 
-The rest of the codebase reads from this config automatically. `brand.py`, `config.py`, and `feeds.py` all derive their values from `business_config.json` at import time. The frontend loads config via `GET /api/config` on page load — category buttons, feed category dropdowns, platform name in scheduling UI, and timezone labels are all rendered dynamically from this endpoint.
+The rest of the codebase reads from this config automatically. The frontend loads config via `GET /api/config` on page load — category buttons, feed category dropdowns, platform name in scheduling UI, and timezone labels are all rendered dynamically.
 
 ### Prompt Template System
 
-All 11 prompt files in `prompts/` use `{{key.subkey}}` template variables that are auto-filled from `business_config.json` at load time. For example, `{{owner.name}}` becomes "Dana Wang" and `{{platform.name}}` becomes "LinkedIn."
+All 11 prompt files in `tenants/<tenant>/prompts/` use `{{key.subkey}}` template variables that are auto-filled from `business_config.json` at load time. For example, `{{owner.name}}` becomes "Dana Wang" and `{{platform.name}}` becomes "LinkedIn."
 
 Each prompt file is divided into two types of sections, marked with HTML comments:
 
@@ -207,6 +277,10 @@ Each prompt file is divided into two types of sections, marked with HTML comment
 - **`<!-- AUTHORED SECTION -->`** — Domain-specific voice rules, examples, content arcs, and signature language. These must be manually written for each business domain.
 
 Available template variables include: `{{owner.name}}`, `{{owner.title}}`, `{{owner.business}}`, `{{owner.credentials}}`, `{{owner.audience}}`, `{{owner.audience_examples}}`, `{{owner.specializations}}`, `{{owner.niche_summary}}`, `{{owner.client_outcomes}}`, `{{platform.name}}`, `{{content.default_ctas.tips}}`, and any other dot-notation path into `business_config.json`. List values render as comma-separated strings.
+
+### Prompt Layering
+
+When loading prompts, the engine checks the tenant directory first. If a prompt file doesn't exist there, it falls back to the framework directory. This means tenants can selectively override prompts — a tenant that only needs a custom `base_system.md` can leave the other 10 prompts as framework defaults.
 
 ### Voice Profile
 
@@ -235,7 +309,7 @@ The base system prompt requests 3 drafts. To change this, edit the output format
 
 ### Feed Sources
 
-Edit `feeds.py` to change the default RSS feed list. Each feed has a URL, display name, category tag, and relevance weight (0.0-1.0). Feeds added via `POST /api/feeds` are stored in the database and won't be overwritten by changes to `feeds.py`.
+Each tenant has a `feeds.json` file with its default RSS feed list. Each feed entry has a URL, display name, category tag, relevance weight (0.0-1.0), and enabled flag. Feeds added via the API or the Feed tab are stored in the database and won't be overwritten.
 
 Feed categories are defined in `business_config.json` under `feeds.categories`.
 
@@ -247,7 +321,7 @@ The default model is `claude-sonnet-4-20250514`. Override it by setting `ANTHROP
 
 ### "API key not configured"
 
-Create a `.env` file in the project root directory (same folder as `app.py`) with:
+Create a `.env` file in the project root directory with:
 
 ```
 ANTHROPIC_API_KEY=your-key-here
@@ -259,13 +333,17 @@ Then restart the app.
 
 Verify your key at [console.anthropic.com](https://console.anthropic.com). Keys start with `sk-ant-`.
 
+### "business_config.json not found"
+
+Make sure you're running the app via `python run.py --tenant <name>` and that the tenant directory exists in `tenants/` with a valid `business_config.json`.
+
 ### Port already in use
 
 Another app is using port 5000. Either stop that app, or set `FLASK_PORT` in your `.env` file.
 
 ### "Database is locked"
 
-This can happen if two instances of the app are running. Stop all instances and restart with a single `python app.py`.
+This can happen if two instances of the app are running. Stop all instances and restart with a single `python run.py`.
 
 ### Autopilot returns "Nothing compelling found"
 
@@ -281,7 +359,7 @@ API calls typically take 5-15 seconds. Autopilot and URL reaction are slower (10
 
 ### Feed refresh is slow
 
-A full feed refresh fetches 12 RSS feeds and then scores new articles via the Claude API. This typically takes 30-60 seconds. The startup auto-refresh runs in a background thread so it doesn't block the app.
+A full feed refresh fetches all configured RSS feeds and then scores new articles via the Claude API. This typically takes 30-60 seconds. The startup auto-refresh runs in a background thread so it doesn't block the app.
 
 ### A feed stopped working
 

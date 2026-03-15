@@ -4,6 +4,32 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-03-15
+
+### Added
+- **Multi-tenant architecture** — the framework code (`framework/`) is now fully separated from tenant-specific content (`tenants/`). Each business gets its own directory with config, prompts, feeds, database, and generated files.
+- **`run.py`** — new entry point that selects a tenant and starts the app. Supports `--tenant <name>` to specify a tenant, `--list` to show available tenants, and defaults to the first tenant found.
+- **`setup_tenant.py`** — helper script to create new tenants from the `_template` skeleton. Usage: `python setup_tenant.py <tenant-name>`.
+- **`tenants/_template/`** — skeleton tenant directory with placeholder `business_config.json`, empty `feeds.json`, and 11 template prompt files. Each prompt has `{{variable}}` placeholders and clearly marked `<!-- AUTHORED SECTION -->` areas telling new users exactly what to fill in.
+- **`tenants/dana-wang/`** — Dana Wang's business content moved here from the old `signal-and-stance/` directory. Contains `business_config.json`, `feeds.json`, 11 prompt files, database, and generated carousels.
+- **`tenants/dana-wang/feeds.json`** — Dana's 12 default RSS feeds extracted from the old hardcoded `feeds.py` into a JSON file.
+- **`SIGNALSTANCE_TENANT_DIR`** environment variable — tells the framework which tenant directory to use. Set automatically by `run.py`.
+
+### Changed
+- **Directory renamed** — `signal-and-stance/` renamed to `framework/` to clarify its role as shared, reusable code.
+- **`business_config.py`** — now reads `business_config.json` from the active tenant directory (set by `SIGNALSTANCE_TENANT_DIR`). Falls back to looking in its own directory for backwards compatibility. Exports `TENANT_DIR` for use by other modules.
+- **`engine.py`** — `load_prompt()` now checks the tenant directory first for prompt files, falling back to the framework directory. This means tenants can selectively override prompts.
+- **`config.py`** — database path (`DATABASE_PATH`) now points to the tenant directory instead of the framework directory. `.env` loading searches both the framework directory and the parent (root) directory.
+- **`feeds.py`** — rewritten to load `DEFAULT_FEEDS` from the tenant's `feeds.json` file instead of a hardcoded Python list. Returns an empty list if `feeds.json` doesn't exist.
+- **`carousel_renderer.py`** — `OUTPUT_DIR` now points to `generated_carousels/` within the tenant directory instead of the framework directory.
+- **`app.py`** — `CAROUSEL_DIR` now uses `TENANT_DIR` for carousel PDF storage. Imports `TENANT_DIR` from `business_config`.
+- **`.gitignore`** — moved to project root with patterns for tenant databases (`tenants/*/*.db`), tenant carousel PDFs (`tenants/*/generated_carousels/*.pdf`), and framework-level backwards compatibility.
+
+### Removed
+- **`signal-and-stance/` directory** — renamed to `framework/`.
+- **Hardcoded `DEFAULT_FEEDS` in `feeds.py`** — replaced by tenant `feeds.json` loading.
+- **`signal-and-stance/.gitignore`** — replaced by root-level `.gitignore`.
+
 ## [1.11.0] - 2026-03-15
 
 ### Added
