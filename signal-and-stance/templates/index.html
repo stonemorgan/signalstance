@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signal &amp; Stance</title>
+    <title>{{ app_name }}</title>
     <script>
         (function() {
             var theme = localStorage.getItem('ss-theme') || 'light';
@@ -17,7 +17,7 @@
         {% if api_key_missing %}
         <header>
             <div class="header-row">
-                <h1>Signal &amp; Stance</h1>
+                <h1>{{ app_name }}</h1>
                 <button class="theme-toggle" id="theme-toggle-setup" aria-label="Toggle dark mode"></button>
             </div>
         </header>
@@ -34,7 +34,7 @@
         {% else %}
         <header>
             <div class="header-row">
-                <h1>Signal &amp; Stance</h1>
+                <h1>{{ app_name }}</h1>
                 <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode"></button>
             </div>
             <div id="today-banner" class="today-banner hidden"></div>

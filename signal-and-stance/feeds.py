@@ -92,15 +92,6 @@ DEFAULT_FEEDS = [
     },
 ]
 
-FEED_CATEGORIES = {
-    "leadership": "Executive leadership, management strategy, C-suite perspectives",
-    "careers": "Career advice, job search strategy, professional development",
-    "executive_careers": "Senior-level and executive career content specifically",
-    "hr_recruiting": "Recruiting practices, hiring processes, what recruiters look for",
-    "labor_data": "Employment statistics, job market reports, economic indicators",
-    "linkedin": "LinkedIn platform updates, algorithm changes, feature releases",
-    "hr_tech": "ATS systems, recruiting technology, HR software trends",
-    "compensation": "Salary data, compensation trends, negotiation research",
-    "workplace": "Workplace culture, remote work, organizational trends",
-    "business_news": "General business news — only relevant when it signals hiring/career trends",
-}
+from business_config import FEEDS_CONFIG
+
+FEED_CATEGORIES = FEEDS_CONFIG["categories"]

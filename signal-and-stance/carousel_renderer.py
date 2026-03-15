@@ -16,6 +16,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import Frame, Paragraph
 
 from brand import BRAND
+from business_config import CONTENT
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -423,7 +424,7 @@ def render_carousel(parsed_content, template_type, output_path=None):
     title = parsed_content.get("title")
     subtitle = parsed_content.get("subtitle")
     slides = parsed_content.get("slides", [])
-    cta = parsed_content.get("cta", "Follow for more career strategy")
+    cta = parsed_content.get("cta", CONTENT["default_ctas"]["general"])
 
     if not title or not slides:
         return {"success": False, "error": "Missing title or slides in content"}

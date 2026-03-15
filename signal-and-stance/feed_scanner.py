@@ -6,6 +6,7 @@ import anthropic
 import feedparser
 import requests
 
+from business_config import OWNER, SCORING_HIGH, SCORING_LOW
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 from database import (
     get_feeds,
@@ -110,22 +111,18 @@ def score_articles(articles):
         article_list += f"    Source: {article.get('feed_name', 'Unknown')} ({article.get('feed_category', 'Unknown')})\n"
         article_list += f"    Summary: {(article.get('summary') or '')[:300]}\n"
 
-    system_prompt = """You are an editorial relevance scorer for Dana Wang, a Certified Professional Resume Writer (CPRW) who specializes in executive and board-level resume writing, LinkedIn profile optimization, ATS compliance, and career coaching for senior professionals (VPs, Directors, C-suite, Board members).
-
-Score each article on a scale of 0.0 to 1.0 based on how likely Dana would have a strong, specific professional reaction to it that she could turn into a LinkedIn post for her audience.
-
-Scoring criteria:
-- 0.8–1.0: Directly relevant to executive careers, resume strategy, ATS systems, LinkedIn optimization, salary negotiation, or hiring trends at the senior level. Dana would read this and immediately think "I need to post about this."
-- 0.5–0.7: Relevant to careers or hiring broadly, but not specifically focused on Dana's executive niche. She could adapt it with her perspective but would need to add significant angle.
-- 0.2–0.4: Tangentially relevant — general business news, workplace trends, or HR topics that might have a career angle if stretched.
-- 0.0–0.1: Not relevant — entry-level advice, unrelated industry news, product announcements, or topics Dana has no credible expertise to comment on.
-
-Respond ONLY with valid JSON — no preamble, no markdown backticks, no commentary. Format:
-[
-  {"index": 1, "score": 0.85, "reason": "Directly about executive hiring trends — strong match for Dana's niche"},
-  {"index": 2, "score": 0.3, "reason": "General workplace culture piece — would need heavy adaptation"},
-  ...
-]"""
+    system_prompt = (
+        f"You are an editorial relevance scorer for {OWNER['name']}, "
+        f"a {OWNER['title']} who specializes in {OWNER['niche_summary']}. "
+        f"Target audience: {OWNER['audience']}.\n\n"
+        f"Score each article from 0.0 to 1.0 for relevance.\n\n"
+        f"High (0.8-1.0): {SCORING_HIGH}\n"
+        f"Medium (0.5-0.7): Tangentially relevant \u2014 could be spun into content with effort\n"
+        f"Low (0.2-0.4): Weak connection to the niche\n"
+        f"None (0.0-0.1): {SCORING_LOW}\n\n"
+        f"Respond ONLY with valid JSON \u2014 no preamble, no markdown backticks, no commentary. Format:\n"
+        f"[{{\"index\": <int>, \"score\": <float>, \"reason\": \"<1 sentence>\"}}]"
+    )
 
     try:
         response = client.messages.create(

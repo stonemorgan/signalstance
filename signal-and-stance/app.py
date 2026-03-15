@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Flask, jsonify, render_template, request, send_file
 
+from business_config import APP_NAME
 from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT, SUGGESTED_TIMES
 from database import (
     add_feed,
@@ -53,9 +54,9 @@ API_KEY_MISSING = not ANTHROPIC_API_KEY
 @app.route("/")
 def index():
     try:
-        return render_template("index.html", api_key_missing=API_KEY_MISSING)
+        return render_template("index.html", api_key_missing=API_KEY_MISSING, app_name=APP_NAME)
     except Exception:
-        return "Signal & Stance is running."
+        return f"{APP_NAME} is running."
 
 
 @app.route("/api/generate", methods=["POST"])

@@ -3,6 +3,7 @@ import re
 
 import anthropic
 
+from business_config import OWNER, PLATFORM, CONTENT
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, MAX_TOKENS
 from database import get_recent_articles, mark_article_used
 from feeds import FEED_CATEGORIES
@@ -65,7 +66,7 @@ def generate_autopilot():
         messages=[
             {
                 "role": "user",
-                "content": "Find a current, relevant career/hiring/resume topic and generate LinkedIn posts about it. Search for recent news first, then write the posts.",
+                "content": f"Find a current, relevant topic related to {OWNER['niche_summary']} and generate {PLATFORM['name']} posts about it. Search for recent news first, then write the posts.",
             }
         ],
     )
@@ -111,7 +112,7 @@ def generate_from_url(url):
         messages=[
             {
                 "role": "user",
-                "content": f"Read this article/post and generate LinkedIn reaction posts from Dana's perspective:\n\n{url}",
+                "content": f"Read this article/post and generate {PLATFORM['name']} reaction posts from {OWNER['name']}'s perspective:\n\n{url}",
             }
         ],
     )
@@ -157,13 +158,14 @@ def generate_from_feed_article(article):
         article.get("feed_category", ""), ""
     )
 
+    _default_relevance = f"Matches {OWNER['name']}'s niche."
     user_message = (
-        f"Generate LinkedIn posts reacting to this article from Dana's curated feed.\n\n"
+        f"Generate {PLATFORM['name']} posts reacting to this article from {OWNER['name']}'s curated feed.\n\n"
         f"**Article title:** {article.get('title', '')}\n\n"
         f"**Summary:** {article.get('summary', 'No summary available.')}\n\n"
         f"**Source publication:** {article.get('feed_name', 'Unknown')}\n\n"
         f"**Feed category:** {article.get('feed_category', 'general')} — {category_desc}\n\n"
-        f"**Why this is relevant:** {article.get('relevance_reason', 'Matches Dana niche.')}"
+        f"**Why this is relevant:** {article.get('relevance_reason', _default_relevance)}"
     )
 
     response = client.messages.create(
@@ -241,7 +243,7 @@ def generate_carousel_content(template_type, raw_input):
 
     Args:
         template_type: "tips", "beforeafter", or "mythreality"
-        raw_input: Dana's insight/observation text
+        raw_input: The owner's insight/observation text
 
     Returns:
         dict with title, subtitle, slides list, and cta — or error dict
@@ -339,7 +341,7 @@ def _parse_tips(raw_content):
         "title": title,
         "subtitle": subtitle,
         "slides": slides,
-        "cta": cta or "Follow for more executive career strategy",
+        "cta": cta or CONTENT["default_ctas"]["tips"],
     }
 
 
@@ -373,7 +375,7 @@ def _parse_beforeafter(raw_content):
         "title": title,
         "subtitle": subtitle,
         "slides": slides,
-        "cta": cta or "Save this for your next resume update",
+        "cta": cta or CONTENT["default_ctas"]["beforeafter"],
     }
 
 
@@ -406,7 +408,7 @@ def _parse_mythreality(raw_content):
         "title": title,
         "subtitle": subtitle,
         "slides": slides,
-        "cta": cta or "Follow for more myth-busting resume strategy",
+        "cta": cta or CONTENT["default_ctas"]["mythreality"],
     }
 
 

@@ -1,0 +1,138 @@
+{
+  "app_name": "Signal & Stance",
+  "database_name": "signal_stance.db",
+
+  "owner": {
+    "name": "Dana Wang",
+    "title": "Certified Professional Resume Writer (CPRW)",
+    "business": "Raleigh Resume",
+    "url": "linkedin.com/in/danaxwang",
+    "credentials": [
+      "CPRW certification via PARWCC",
+      "MA from UNC Chapel Hill"
+    ],
+    "niche_summary": "Executive resume writing, LinkedIn optimization, ATS compliance, career coaching for senior professionals",
+    "audience": "VPs, Directors, C-suite leaders, Board members",
+    "audience_examples": "VP of Marketing, Director of Engineering, CFO, Board Director",
+    "specializations": [
+      "executive and board-level resumes",
+      "LinkedIn profile optimization",
+      "ATS compliance",
+      "federal resumes",
+      "salary negotiation positioning"
+    ],
+    "client_outcomes": "Fortune 30 companies, high-growth startups, Board seats"
+  },
+
+  "platform": {
+    "name": "LinkedIn",
+    "post_word_range": [150, 300],
+    "carousel_dimensions": [1080, 1080],
+    "scheduling_url": "https://linkedin.com/feed"
+  },
+
+  "brand": {
+    "primary": "#1B3A4B",
+    "secondary": "#4A90A4",
+    "accent": "#D4A574",
+    "background": "#FFFFFF",
+    "background_alt": "#F5F3EF",
+    "text_dark": "#1B3A4B",
+    "text_light": "#FFFFFF",
+    "text_muted": "#6B7B8D",
+    "divider": "#E0DCD5",
+    "negative": "#C0392B",
+    "positive": "#27AE60",
+    "font_heading": "Helvetica-Bold",
+    "font_body": "Helvetica",
+    "font_accent": "Helvetica-Oblique"
+  },
+
+  "content": {
+    "categories": {
+      "pattern": {
+        "label": "Pattern",
+        "prompt_label": "I keep seeing...",
+        "placeholder": "Describe a pattern you keep seeing in your work or industry..."
+      },
+      "faq": {
+        "label": "FAQ",
+        "prompt_label": "Client asked...",
+        "placeholder": "What question do you keep getting asked? What's your take?"
+      },
+      "noticed": {
+        "label": "Noticed",
+        "prompt_label": "Just noticed...",
+        "placeholder": "What did you notice recently that others might have missed?"
+      },
+      "hottake": {
+        "label": "Hot Take",
+        "prompt_label": "Hot take...",
+        "placeholder": "What's your spicy opinion? Why do you believe it?"
+      }
+    },
+    "carousel_templates": ["tips", "beforeafter", "mythreality"],
+    "default_ctas": {
+      "tips": "Follow for more executive career strategy",
+      "beforeafter": "Save this for your next resume update",
+      "mythreality": "Follow for more myth-busting resume strategy",
+      "general": "Follow for more career strategy"
+    }
+  },
+
+  "schedule": {
+    "days": {
+      "Monday": {
+        "content_type": "Educational / Pattern",
+        "suggestion": "Share a pattern or recurring mistake you see in your work"
+      },
+      "Tuesday": {
+        "content_type": "Tactical Tip",
+        "suggestion": "Share a specific, actionable tip about resumes, LinkedIn, or job search"
+      },
+      "Wednesday": {
+        "content_type": "Deep Dive / Story",
+        "suggestion": "Tell a story or go deeper on a topic with a client example"
+      },
+      "Thursday": {
+        "content_type": "Thought Leadership / Hot Take",
+        "suggestion": "Share a contrarian opinion or professional stance"
+      },
+      "Friday": {
+        "content_type": "Quick Win / Encouragement",
+        "suggestion": "Share a quick tip or insight that builds confidence"
+      }
+    },
+    "suggested_times": {
+      "Monday": "8:30 AM",
+      "Tuesday": "9:00 AM",
+      "Wednesday": "8:30 AM",
+      "Thursday": "9:00 AM",
+      "Friday": "10:00 AM"
+    },
+    "timezone": "EST"
+  },
+
+  "feeds": {
+    "categories": {
+      "leadership": "Executive leadership, management strategy, C-suite perspectives",
+      "careers": "Career advice, job search strategy, professional development",
+      "executive_careers": "Senior-level and executive career content specifically",
+      "hr_recruiting": "Recruiting practices, hiring processes, what recruiters look for",
+      "labor_data": "Employment statistics, job market reports, economic indicators",
+      "linkedin": "LinkedIn platform updates, algorithm changes, feature releases",
+      "hr_tech": "ATS systems, recruiting technology, HR software trends",
+      "compensation": "Salary data, compensation trends, negotiation research",
+      "workplace": "Workplace culture, remote work, organizational trends",
+      "business_news": "General business news \u2014 only relevant when it signals hiring/career trends"
+    }
+  },
+
+  "scoring": {
+    "high_relevance_threshold": 0.7,
+    "medium_relevance_threshold": 0.5,
+    "scoring_description": "Score articles for relevance to {owner.name}'s niche: {owner.niche_summary}. Target audience: {owner.audience}.",
+    "scoring_high": "Directly relevant to {owner.niche_summary} or topics {owner.audience} would care about",
+    "scoring_low": "Unrelated industry news, entry-level advice, or topics {owner.name} has no credible expertise to comment on"
+  }
+}
