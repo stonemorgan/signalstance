@@ -4,6 +4,29 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-03-15
+
+### Added
+- **`/api/config` endpoint** — serves a safe subset of `business_config.json` to the frontend (app name, owner, platform, content categories, schedule timezone, feed categories). No API keys or scoring internals are exposed.
+- **`loadConfig()` / `applyConfig()`** — async config loader in the frontend with try/catch fallback to hardcoded defaults so the app still works if the endpoint fails.
+- **`selectCategory(key)`** — centralized category selection function replacing 5 duplicated `categoryBtns.forEach(...)` patterns across the codebase.
+- **`renderCategoryButtons()`** — generates category buttons dynamically from `content.categories` config, preserving existing CSS classes and click behavior.
+- **`renderFeedCategoryDropdowns()`** — populates all `.feed-category-select` dropdowns (article filter and add-feed form) from `feeds.categories` config, preserving the "All categories" first option on the filter.
+- **`getCategoryDisplayName(key)`** — converts category keys to display names (e.g., `executive_careers` → "Executive Careers"), replacing the hardcoded `feedCatLabels` map.
+
+### Changed
+- **6 hardcoded "LinkedIn" references** in scheduling UI, copy-and-schedule flow, unschedule reminder, paste hint, and `window.open` URL now read from `APP_CONFIG.platform.name` and `APP_CONFIG.platform.scheduling_url` with `|| 'LinkedIn'` fallbacks.
+- **3 hardcoded "EST" references** in calendar time displays (published, scheduled, suggested) now read from `APP_CONFIG.schedule.timezone`.
+- **Category buttons** in the Create tab are no longer hardcoded HTML — generated dynamically from config on page load.
+- **Feed category dropdowns** (article filter and add-feed form) are no longer hardcoded `<option>` elements — populated from config on page load.
+- **`formatCategory()`** now checks `APP_CONFIG.content.categories` first for display labels, falling back to a static map only for internal categories (autopilot, url_react, feed_react).
+- **`contentTypeToCat` mapping** documented as config-dependent with a comment explaining its relationship to `business_config.json` content types and categories.
+- **`app.py`** imports `BUSINESS` from `business_config` alongside `APP_NAME`.
+
+### Removed
+- **`feedCatLabels` hardcoded map** — replaced by dynamic `getCategoryDisplayName()`.
+- **`categoryBtns` static NodeList** — removed; all category selection now uses `selectCategory()` with live DOM queries.
+
 ## [1.10.0] - 2026-03-15
 
 ### Added

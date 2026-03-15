@@ -1,6 +1,6 @@
 # Signal & Stance
 
-A locally hosted web app that helps generate LinkedIn content in a consistent, authentic voice. Built for daily use — go from insight to published post in under 5 minutes.
+A locally hosted web app that helps generate social media content in a consistent, authentic voice. Built for daily use — go from insight to published post in under 5 minutes. The target platform (LinkedIn, Instagram, etc.) is configurable via `business_config.json`.
 
 ## Setup
 
@@ -112,6 +112,8 @@ The Feed Scanner pulls articles from curated RSS sources and scores them for rel
 - `POST /api/articles/<id>/dismiss` — dismiss an article from the pool
 - `POST /api/feeds/refresh` — fetch all feeds and score new articles
 
+**Frontend config:** `GET /api/config` — returns a safe subset of `business_config.json` for the frontend (app name, owner, platform, content categories, schedule timezone, feed categories). No API keys or scoring internals are exposed.
+
 **Autopilot integration:** The autopilot (`POST /api/generate/autopilot`) now checks the feed pool first. The response includes a `method` field ("feed" or "web_search") and a `source_article` object when a feed article was used.
 
 **Auto-refresh:** On startup, feeds are refreshed in the background if they haven't been fetched in over 6 hours.
@@ -193,7 +195,7 @@ All business identity, brand, schedule, and domain settings live in a single fil
 - **Feed categories** — category labels and descriptions for RSS feed classification
 - **Scoring criteria** — relevance scoring thresholds and prompt templates
 
-The rest of the codebase reads from this config automatically. `brand.py`, `config.py`, and `feeds.py` all derive their values from `business_config.json` at import time.
+The rest of the codebase reads from this config automatically. `brand.py`, `config.py`, and `feeds.py` all derive their values from `business_config.json` at import time. The frontend loads config via `GET /api/config` on page load — category buttons, feed category dropdowns, platform name in scheduling UI, and timezone labels are all rendered dynamically from this endpoint.
 
 ### Prompt Template System
 
