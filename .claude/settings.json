@@ -1,0 +1,21 @@
+{
+  "model": "opus",
+  "permissions": {
+    "allow": [
+      "Bash(python run.py*)",
+      "Bash(python -m pytest*)",
+      "Bash(python setup_tenant.py*)",
+      "Bash(pip install -r *requirements*)",
+      "Bash(ls *)",
+      "Bash(git *)",
+      "Bash(mkdir -p audit-reports*)",
+      "Bash(cd framework*pytest*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(*ANTHROPIC_API_KEY*)"
+    ]
+  }
+}

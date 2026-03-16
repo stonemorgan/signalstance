@@ -4,6 +4,18 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-03-16
+
+### Added
+- **`CLAUDE.md`** — project-level instruction file for all Claude Code sessions. 255 lines covering model requirements, architecture overview, tech stack, key commands, environment variables, code conventions, multi-tenant rules, security rules, testing requirements, database schema, agent inventory, and key files reference. Loaded automatically at the start of every Claude Code conversation.
+- **`.claude/settings.json`** — project-level Claude Code settings enforcing the Opus model and defining permission guardrails.
+  - `"model": "opus"` ensures all interactive sessions use Opus regardless of user's global settings or `--model` CLI flag.
+  - Allow list: `python run.py`, `python -m pytest`, `python setup_tenant.py`, `pip install`, `ls`, `git`, `mkdir -p audit-reports`, `cd framework && pytest`.
+  - Deny list: `rm -rf` (recursive delete), `git push --force`, `git reset --hard` (destructive git), any command containing `ANTHROPIC_API_KEY` (key exposure prevention).
+
+### Changed
+- Opus model is now enforced at three levels: `.claude/settings.json` for interactive sessions, agent frontmatter (`model: opus`) for all 9 agents, and documented as a project requirement in `CLAUDE.md`.
+
 ## [1.14.0] - 2026-03-15
 
 ### Added

@@ -88,7 +88,8 @@ signalstance/
 │       └── prompts/              # 11 template prompts with {{}} vars
 │
 ├── .claude/
-│   ├── agents/                   # Specialized audit subagents
+│   ├── settings.json             # Project-level: enforces Opus model + permissions
+│   ├── agents/                   # Specialized audit subagents (all model: opus)
 │   │   ├── audit-suite.md        # Orchestrator (runs the full workflow)
 │   │   ├── security-auditor.md   # XSS, injection, path traversal, prompt injection
 │   │   ├── error-resilience.md   # Crash paths, race conditions, resource leaks
@@ -107,6 +108,7 @@ signalstance/
 │
 ├── run.py                        # Entry point: selects tenant, starts app
 ├── setup_tenant.py               # Helper to create new tenants
+├── CLAUDE.md                     # Claude Code project instructions (auto-loaded)
 └── .env                          # API key (shared across tenants)
 ```
 
@@ -360,6 +362,15 @@ The default model is `claude-sonnet-4-20250514`. Override it by setting `ANTHROP
 ### Debug Mode
 
 Flask debug mode is off by default. To enable it for development (enables auto-reload and the Werkzeug debugger), set `FLASK_DEBUG=true` in your `.env` file. Never enable debug mode on a network-accessible deployment.
+
+## Claude Code Configuration
+
+The project includes two files that configure Claude Code sessions:
+
+- **`CLAUDE.md`** — loaded automatically at the start of every conversation. Contains architecture overview, code conventions, security rules, multi-tenant rules, and testing requirements so Claude has full project context without needing to rediscover it each session.
+- **`.claude/settings.json`** — enforces the Opus model for all interactive sessions and defines permission guardrails (allowed dev commands, denied destructive operations and API key exposure).
+
+All 9 audit agents in `.claude/agents/` also specify `model: opus` in their frontmatter. The Opus model requirement is documented in `CLAUDE.md` and applies to any new agents or skills created for this project.
 
 ## Troubleshooting
 
