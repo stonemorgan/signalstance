@@ -8,3 +8,6 @@ tenants/*/*.db
 
 # Framework-level (backwards compatibility)
 framework/generated_carousels/
+
+# Audit reports (generated, not source)
+audit-reports/

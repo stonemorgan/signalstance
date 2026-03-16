@@ -4,6 +4,30 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-03-15
+
+### Added
+- **Audit agent suite** — 8 specialized Claude Code subagents for comprehensive codebase review, each targeting a specific domain: security, error resilience, data integrity, API robustness, frontend quality, code optimization, test coverage, and implementation execution.
+- **`audit-suite` orchestrator agent** — master agent that coordinates the full 4-phase audit workflow: parallel audit (6 agents), triage & synthesis, implementation of critical fixes, and test coverage generation.
+- **`/audit` slash command** — skill that triggers the full audit workflow from within any Claude Code conversation. Supports optional arguments to customize behavior (e.g., stop after triage).
+- **`scripts/run-audit.sh`** — shell script for one-command audit execution with three modes: full audit (default), `--audit-only` (no code changes), and `--resume` (continue interrupted audit).
+- **`scripts/run-audit.bat`** — Windows batch script equivalent for the audit runner.
+- **Audit reports output** — all findings, triage summaries, implementation reports, and test coverage reports saved to `audit-reports/` for traceability across runs.
+
+### Agent Definitions
+- `.claude/agents/security-auditor.md` — XSS, injection, path traversal, tenant isolation, prompt injection, API key exposure
+- `.claude/agents/error-resilience.md` — crash paths, unhandled exceptions, race conditions, resource leaks
+- `.claude/agents/data-integrity.md` — SQLite concurrency, schema gaps, state machine bugs, orphaned data
+- `.claude/agents/api-robustness.md` — Claude API error handling, rate limits, feed fetching, cost management
+- `.claude/agents/frontend-reviewer.md` — SPA bugs, state management, DOM issues, accessibility
+- `.claude/agents/codebase-optimizer.md` — dead code, duplication, architecture debt, performance
+- `.claude/agents/test-architect.md` — test gap analysis and implementation (has write access)
+- `.claude/agents/implementation-executor.md` — executes fixes from audit findings (has write access)
+- `.claude/agents/audit-suite.md` — orchestrator coordinating all of the above
+
+### Changed
+- `.gitignore` — added `audit-reports/` to excluded paths
+
 ## [1.12.0] - 2026-03-15
 
 ### Added

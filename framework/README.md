@@ -82,6 +82,24 @@ signalstance/
 │       ├── feeds.json            # Empty feed list
 │       └── prompts/              # 11 template prompts with {{}} vars
 │
+├── .claude/
+│   ├── agents/                   # Specialized audit subagents
+│   │   ├── audit-suite.md        # Orchestrator (runs the full workflow)
+│   │   ├── security-auditor.md   # XSS, injection, path traversal, prompt injection
+│   │   ├── error-resilience.md   # Crash paths, race conditions, resource leaks
+│   │   ├── data-integrity.md     # SQLite concurrency, schema, state machines
+│   │   ├── api-robustness.md     # Claude API errors, rate limits, feed fetching
+│   │   ├── frontend-reviewer.md  # SPA bugs, state management, accessibility
+│   │   ├── codebase-optimizer.md # Dead code, duplication, performance
+│   │   ├── test-architect.md     # Test gap analysis + implementation
+│   │   └── implementation-executor.md  # Executes fixes from findings
+│   └── skills/
+│       └── audit/SKILL.md        # /audit slash command
+│
+├── scripts/
+│   ├── run-audit.sh              # Audit runner (Linux/Mac/Git Bash)
+│   └── run-audit.bat             # Audit runner (Windows)
+│
 ├── run.py                        # Entry point: selects tenant, starts app
 ├── setup_tenant.py               # Helper to create new tenants
 └── .env                          # API key (shared across tenants)
@@ -336,6 +354,83 @@ Verify your key at [console.anthropic.com](https://console.anthropic.com). Keys 
 ### "business_config.json not found"
 
 Make sure you're running the app via `python run.py --tenant <name>` and that the tenant directory exists in `tenants/` with a valid `business_config.json`.
+
+## Audit Suite
+
+A suite of 8 specialized Claude Code subagents that perform comprehensive codebase review, find bugs and vulnerabilities, implement fixes, and build test coverage. Designed for routine pre-production audits.
+
+### Running an Audit
+
+**From a Claude Code conversation:**
+
+```
+/audit
+```
+
+**From the terminal (one command):**
+
+```bash
+# Full audit — analyze, triage, fix, test
+./scripts/run-audit.sh
+
+# Audit + triage only — no code changes
+./scripts/run-audit.sh --audit-only
+
+# Resume an interrupted audit
+./scripts/run-audit.sh --resume
+
+# Windows
+scripts\run-audit.bat
+scripts\run-audit.bat --audit-only
+```
+
+**Or via Claude Code CLI directly:**
+
+```bash
+claude --agent audit-suite -p "Run the full audit"
+```
+
+### Workflow Phases
+
+The audit runs in 4 phases:
+
+1. **Audit** — 6 specialized agents run in parallel, each analyzing their domain:
+   - `security-auditor` — XSS, injection, path traversal, tenant isolation, prompt injection
+   - `error-resilience` — crash paths, unhandled exceptions, race conditions, resource leaks
+   - `data-integrity` — SQLite concurrency, schema gaps, state machine bugs, orphaned data
+   - `api-robustness` — Claude API error handling, rate limits, feed fetching failures
+   - `frontend-reviewer` — SPA bugs, state management, DOM issues, accessibility
+   - `codebase-optimizer` — dead code, duplication, architecture debt, performance
+2. **Triage** — findings synthesized into a unified priority report (`audit-reports/00-triage-summary.md`)
+3. **Implement** — `implementation-executor` applies Critical and High priority fixes
+4. **Test** — `test-architect` builds test coverage around the fixes
+
+### Audit Output
+
+All reports are saved to `audit-reports/`:
+
+```
+audit-reports/
+├── 00-triage-summary.md      ← Start here — unified priority list
+├── 01-security.md             ← Raw security audit findings
+├── 02-error-resilience.md     ← Raw error handling findings
+├── 03-data-integrity.md       ← Raw database/data findings
+├── 04-api-robustness.md       ← Raw API integration findings
+├── 05-frontend.md             ← Raw frontend findings
+├── 06-code-quality.md         ← Raw code quality findings
+├── 07-implementation.md       ← What was fixed and how
+├── 08-test-coverage.md        ← What tests were added
+└── 09-final-summary.md        ← Executive summary
+```
+
+### Running Individual Agents
+
+You can also run a single agent for targeted analysis:
+
+```
+Run the security-auditor agent on the codebase
+Run the data-integrity agent on the codebase
+```
 
 ### Port already in use
 
