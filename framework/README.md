@@ -55,19 +55,24 @@ python run.py --list
 ```
 signalstance/
 ├── framework/                    # Shared, reusable code
-│   ├── app.py                    # Flask routes (24+ endpoints)
+│   ├── app.py                    # Flask routes (36 endpoints)
 │   ├── engine.py                 # Content generation pipeline
-│   ├── database.py               # SQLite CRUD
+│   ├── database.py               # SQLite CRUD (WAL mode, FK enforcement)
 │   ├── carousel_renderer.py      # PDF generation
 │   ├── feed_scanner.py           # RSS fetching + scoring
 │   ├── business_config.py        # Config loader (reads from active tenant)
 │   ├── config.py                 # App settings
 │   ├── brand.py                  # Visual identity for carousels
 │   ├── feeds.py                  # Feed list loader
-│   ├── schema.sql                # Database DDL
+│   ├── schema.sql                # Database DDL + indexes
 │   ├── requirements.txt          # Python dependencies
 │   ├── templates/index.html      # Frontend SPA
-│   └── static/style.css          # Styling
+│   ├── static/style.css          # Styling
+│   └── tests/                    # Pytest suite (97 tests, no API keys needed)
+│       ├── conftest.py           # Shared fixtures (in-memory DB, patched config)
+│       ├── test_database.py      # Database CRUD, state machine, FK enforcement
+│       ├── test_engine_parsing.py # Draft/carousel parsing, field extraction
+│       └── test_app_security.py  # SSRF, path traversal, debug mode, error format
 │
 ├── tenants/
 │   ├── dana-wang/                # Dana Wang / Raleigh Resume tenant
@@ -269,6 +274,23 @@ The `SIGNALSTANCE_TENANT_DIR` environment variable tells the framework which ten
 
 If `SIGNALSTANCE_TENANT_DIR` is not set, the framework falls back to looking in its own directory for backwards compatibility.
 
+## Testing
+
+Run the full test suite (no API keys or external services required):
+
+```bash
+cd framework
+python -m pytest tests/ -v
+```
+
+**97 tests** across 3 modules, executing in ~3 seconds:
+
+- **`test_database.py`** (39 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency.
+- **`test_engine_parsing.py`** (29 tests) — `parse_drafts()` with well-formed/malformed/edge-case inputs, carousel content parsing for all 3 templates (tips, before/after, myth/reality), `_extract_field()` helper.
+- **`test_app_security.py`** (29 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization.
+
+All tests use an in-memory SQLite database and mocked configuration. No Anthropic API calls are made.
+
 ## Customization
 
 ### Business Configuration
@@ -334,6 +356,10 @@ Feed categories are defined in `business_config.json` under `feeds.categories`.
 ### Model
 
 The default model is `claude-sonnet-4-20250514`. Override it by setting `ANTHROPIC_MODEL` in your `.env` file. `MAX_TOKENS` and `FLASK_PORT` are also overridable via environment variables.
+
+### Debug Mode
+
+Flask debug mode is off by default. To enable it for development (enables auto-reload and the Werkzeug debugger), set `FLASK_DEBUG=true` in your `.env` file. Never enable debug mode on a network-accessible deployment.
 
 ## Troubleshooting
 
@@ -438,7 +464,7 @@ Another app is using port 5000. Either stop that app, or set `FLASK_PORT` in you
 
 ### "Database is locked"
 
-This can happen if two instances of the app are running. Stop all instances and restart with a single `python run.py`.
+This should be rare since the database now uses WAL mode for concurrent access. If it still occurs, check that two separate instances of the app aren't running against the same tenant. Stop all instances and restart with a single `python run.py`.
 
 ### Autopilot returns "Nothing compelling found"
 

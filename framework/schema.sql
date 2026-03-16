@@ -74,3 +74,11 @@ CREATE TABLE IF NOT EXISTS carousel_data (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (generation_id) REFERENCES generations(id)
 );
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_calendar_slots_date ON calendar_slots(slot_date);
+CREATE INDEX IF NOT EXISTS idx_generations_insight ON generations(insight_id);
+CREATE INDEX IF NOT EXISTS idx_feed_articles_feed ON feed_articles(feed_id);
+
+-- Uniqueness constraint on calendar slots
+CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_slots_unique_date ON calendar_slots(slot_date);

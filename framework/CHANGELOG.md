@@ -4,6 +4,36 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-03-15
+
+### Added
+- **Pytest test suite** — 97 automated tests across 3 modules, runnable in ~3 seconds with zero external dependencies or API keys.
+  - `framework/tests/test_database.py` (39 tests) — CRUD operations, calendar state machine transitions, foreign key enforcement, connection cleanup, carousel data round-trips.
+  - `framework/tests/test_engine_parsing.py` (29 tests) — draft parsing, carousel content parsing (tips, before/after, myth/reality), field extraction, edge cases.
+  - `framework/tests/test_app_security.py` (29 tests) — SSRF URL validation, path traversal rejection, debug mode defaults, API error response format, error categorization.
+  - `framework/tests/conftest.py` — shared fixtures with in-memory SQLite and patched config for isolated testing.
+- **SSRF protection on feed URLs** — new `_is_safe_url()` helper in `app.py` validates that feed URLs use http/https and do not resolve to private IP ranges (127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x, IPv6 loopback/ULA/link-local). Applied to the `POST /api/feeds` endpoint.
+- **Path traversal guard on carousel downloads** — `GET /api/carousel/download/<id>` now verifies the resolved file path stays within the carousel output directory using `os.path.realpath()`.
+- **Database performance indexes** — added indexes on `calendar_slots(slot_date)`, `generations(insight_id)`, and `feed_articles(feed_id)` to eliminate full table scans on frequent queries.
+- **Calendar slot uniqueness constraint** — `UNIQUE INDEX` on `calendar_slots(slot_date)` prevents duplicate slots from concurrent requests.
+
+### Changed
+- **Flask debug mode off by default** — `app.run()` in both `app.py` and `run.py` now reads `FLASK_DEBUG` environment variable instead of hardcoding `debug=True`. Debug mode requires explicit opt-in via `FLASK_DEBUG=true`.
+- **SQLite WAL mode enabled** — `get_connection()` now executes `PRAGMA journal_mode=WAL` for concurrent read/write support, eliminating "database is locked" errors during background feed refresh.
+- **Foreign key enforcement enabled** — `get_connection()` now executes `PRAGMA foreign_keys=ON`, activating all referential integrity constraints declared in `schema.sql`.
+- **SQLite busy timeout increased** — `sqlite3.connect()` now uses `timeout=30` (was default 5 seconds), reducing lock contention failures under concurrent access.
+- **Database connection leak prevention** — all 24+ functions in `database.py` and 5 inline connection uses in `app.py` now use `try/finally` blocks to guarantee `conn.close()` even when exceptions occur.
+- **Claude API call timeouts** — all `client.messages.create()` calls in `engine.py` now use `timeout=120` (2 minutes) and `feed_scanner.py` scoring uses `timeout=60`. Previously used the SDK default of 10 minutes.
+- **Regenerate button double-click protection** — the regenerate button is now disabled during API calls and re-enabled on completion or error, preventing duplicate generation requests.
+- **Calendar state machine enforcement** — `clear_slot()` now rejects clearing published slots with a `ValueError`. `assign_draft_to_slot()` now validates the slot is empty or draft_ready before assignment, rejecting scheduled/published slots.
+- **Atomic calendar status transitions** — `update_slot_status()` now uses a single `UPDATE ... WHERE status IN (...)` query instead of separate read-then-write, eliminating the TOCTOU race condition.
+
+### Fixed
+- Database connections no longer leak when exceptions occur mid-operation (was a resource exhaustion risk under sustained error conditions).
+- Calendar slots can no longer enter invalid states via concurrent requests or state machine bypasses.
+- Feed URL addition no longer allows SSRF attacks targeting internal network services or cloud metadata endpoints.
+- Carousel PDF downloads no longer vulnerable to path traversal via crafted filenames in the database.
+
 ## [1.13.0] - 2026-03-15
 
 ### Added

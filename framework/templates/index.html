@@ -452,8 +452,9 @@
             // Generate button
             generateBtn.addEventListener('click', doGenerate);
 
-            // Regenerate button
+            // Regenerate button -- disable during request to prevent duplicate API calls
             regenerateBtn.addEventListener('click', () => {
+                regenerateBtn.disabled = true;
                 if (lastGenerationMode === 'autopilot') {
                     doAutopilot();
                 } else {
@@ -545,6 +546,7 @@
                 .then(r => r.json())
                 .then(data => {
                     hideLoading();
+                    regenerateBtn.disabled = false;
                     if (data.success) {
                         currentDrafts = data.drafts;
                         currentCarousel = null;
@@ -558,6 +560,7 @@
                 })
                 .catch(err => {
                     hideLoading();
+                    regenerateBtn.disabled = false;
                     showError('Network error. Check your internet connection and try again.');
                 });
             }
@@ -583,6 +586,7 @@
                 .then(r => r.json())
                 .then(data => {
                     hideLoading();
+                    regenerateBtn.disabled = false;
                     if (data.success) {
                         currentCarousel = data.carousel;
                         currentCarouselInsightId = data.insight_id;
@@ -597,6 +601,7 @@
                 })
                 .catch(() => {
                     hideLoading();
+                    regenerateBtn.disabled = false;
                     showError('Network error. Check your internet connection and try again.');
                 });
             }
@@ -616,6 +621,7 @@
                 .then(r => r.json())
                 .then(data => {
                     hideLoading();
+                    regenerateBtn.disabled = false;
                     if (data.success) {
                         currentDrafts = data.drafts;
                         showSource(data.source_summary, data.source_url, 'url');
@@ -629,6 +635,7 @@
                 })
                 .catch(err => {
                     hideLoading();
+                    regenerateBtn.disabled = false;
                     showError('Network error. Check your internet connection and try again.');
                 });
             }
@@ -650,6 +657,7 @@
                 .then(data => {
                     hideLoading();
                     autopilotBtn.disabled = false;
+                    regenerateBtn.disabled = false;
                     if (data.nothing_found) {
                         showError('Nothing compelling found in today\'s news cycle. Try again later or switch to manual mode.');
                         return;
@@ -673,6 +681,7 @@
                 .catch(err => {
                     hideLoading();
                     autopilotBtn.disabled = false;
+                    regenerateBtn.disabled = false;
                     showError('Network error. Check your internet connection and try again.');
                 });
             }

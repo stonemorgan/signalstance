@@ -1,8 +1,11 @@
+import ipaddress
 import os
 import re
+import socket
 import threading
 import time
 from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request, send_file
 
@@ -49,6 +52,37 @@ app = Flask(__name__)
 
 VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake", "autopilot", "url_react", "feed_react"}
 API_KEY_MISSING = not ANTHROPIC_API_KEY
+
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+]
+
+
+def _is_safe_url(url):
+    """Validate that a URL is safe (not pointing to private/internal networks)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False, "URL must start with http:// or https://"
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "Invalid URL: no hostname found"
+    try:
+        resolved = socket.getaddrinfo(hostname, None)
+        for family, _type, _proto, _canonname, sockaddr in resolved:
+            ip = ipaddress.ip_address(sockaddr[0])
+            for network in _PRIVATE_NETWORKS:
+                if ip in network:
+                    return False, "URLs pointing to private/internal networks are not allowed"
+    except socket.gaierror:
+        return False, "Could not resolve hostname"
+    return True, None
 
 
 @app.route("/")
@@ -132,11 +166,13 @@ def generate():
         if for_slot_id:
             from database import get_connection
             conn = get_connection()
-            slot = conn.execute(
-                "SELECT id, slot_date, day_of_week FROM calendar_slots WHERE id = ?",
-                (for_slot_id,),
-            ).fetchone()
-            conn.close()
+            try:
+                slot = conn.execute(
+                    "SELECT id, slot_date, day_of_week FROM calendar_slots WHERE id = ?",
+                    (for_slot_id,),
+                ).fetchone()
+            finally:
+                conn.close()
             if slot:
                 day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
                 response["for_slot"] = {
@@ -437,9 +473,11 @@ def calendar_assign():
 
         from database import get_connection
         conn = get_connection()
-        slot = conn.execute("SELECT id FROM calendar_slots WHERE id = ?", (slot_id,)).fetchone()
-        gen = conn.execute("SELECT id FROM generations WHERE id = ?", (generation_id,)).fetchone()
-        conn.close()
+        try:
+            slot = conn.execute("SELECT id FROM calendar_slots WHERE id = ?", (slot_id,)).fetchone()
+            gen = conn.execute("SELECT id FROM generations WHERE id = ?", (generation_id,)).fetchone()
+        finally:
+            conn.close()
 
         if not slot:
             return jsonify({"success": False, "error": "Slot not found"}), 404
@@ -449,6 +487,8 @@ def calendar_assign():
         assign_draft_to_slot(slot_id, generation_id)
         return jsonify({"success": True})
 
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -490,6 +530,8 @@ def calendar_clear():
         clear_slot(slot_id)
         return jsonify({"success": True})
 
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -505,8 +547,10 @@ def calendar_skip():
 
         from database import get_connection
         conn = get_connection()
-        slot = conn.execute("SELECT status FROM calendar_slots WHERE id = ?", (slot_id,)).fetchone()
-        conn.close()
+        try:
+            slot = conn.execute("SELECT status FROM calendar_slots WHERE id = ?", (slot_id,)).fetchone()
+        finally:
+            conn.close()
 
         if not slot:
             return jsonify({"success": False, "error": "Slot not found"}), 404
@@ -533,13 +577,15 @@ def feeds_list():
         feeds = get_feeds(enabled_only=False)
         from database import get_connection
         conn = get_connection()
-        for feed in feeds:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM feed_articles WHERE feed_id = ?", (feed["id"],)
-            ).fetchone()[0]
-            feed["article_count"] = count
-            feed["enabled"] = bool(feed["enabled"])
-        conn.close()
+        try:
+            for feed in feeds:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM feed_articles WHERE feed_id = ?", (feed["id"],)
+                ).fetchone()[0]
+                feed["article_count"] = count
+                feed["enabled"] = bool(feed["enabled"])
+        finally:
+            conn.close()
         stats = get_feed_stats()
         return jsonify({"success": True, "feeds": feeds, "stats": stats})
     except Exception as e:
@@ -557,6 +603,10 @@ def feeds_add():
 
         if not url or not name:
             return jsonify({"success": False, "error": "url and name are required"}), 400
+
+        safe, safe_error = _is_safe_url(url)
+        if not safe:
+            return jsonify({"success": False, "error": safe_error}), 400
 
         feed_id, error = add_feed(url, name, category, weight)
         if error:
@@ -758,6 +808,8 @@ def download_carousel(generation_id):
         return jsonify({"success": False, "error": "Carousel not found"}), 404
 
     filepath = os.path.join(CAROUSEL_DIR, carousel["pdf_filename"])
+    if not os.path.realpath(filepath).startswith(os.path.realpath(CAROUSEL_DIR)):
+        return jsonify({"success": False, "error": "Invalid filename"}), 400
     if not os.path.isfile(filepath):
         return jsonify({"success": False, "error": "PDF file not found"}), 404
 
@@ -785,8 +837,10 @@ def regenerate_carousel_route():
         # Fetch the original insight
         from database import get_connection
         conn = get_connection()
-        insight = conn.execute("SELECT * FROM insights WHERE id = ?", (insight_id,)).fetchone()
-        conn.close()
+        try:
+            insight = conn.execute("SELECT * FROM insights WHERE id = ?", (insight_id,)).fetchone()
+        finally:
+            conn.close()
 
         if not insight:
             return jsonify({"success": False, "error": "Insight not found"}), 404
@@ -941,4 +995,4 @@ if __name__ == "__main__":
     # Auto-refresh feeds in background if stale
     threading.Thread(target=maybe_refresh_feeds, daemon=True).start()
 
-    app.run(debug=True, port=FLASK_PORT)
+    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true", port=FLASK_PORT)

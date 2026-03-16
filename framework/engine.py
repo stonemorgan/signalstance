@@ -75,6 +75,7 @@ def generate_posts(category, raw_input, source_url=None):
         max_tokens=MAX_TOKENS,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
+        timeout=120,
     )
 
     full_response = response.content[0].text
@@ -105,6 +106,7 @@ def generate_autopilot():
                 "content": f"Find a current, relevant topic related to {OWNER['niche_summary']} and generate {PLATFORM['name']} posts about it. Search for recent news first, then write the posts.",
             }
         ],
+        timeout=120,
     )
 
     # Extract text content from multi-block response
@@ -151,6 +153,7 @@ def generate_from_url(url):
                 "content": f"Read this article/post and generate {PLATFORM['name']} reaction posts from {OWNER['name']}'s perspective:\n\n{url}",
             }
         ],
+        timeout=120,
     )
 
     # Extract text content from multi-block response
@@ -209,6 +212,7 @@ def generate_from_feed_article(article):
         max_tokens=MAX_TOKENS,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
+        timeout=120,
     )
 
     full_response = response.content[0].text
@@ -304,6 +308,7 @@ def generate_carousel_content(template_type, raw_input):
         max_tokens=MAX_TOKENS,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
+        timeout=120,
     )
 
     raw_content = response.content[0].text

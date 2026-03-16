@@ -68,7 +68,7 @@ def main():
     # Import and run the app
     from app import app
     from config import FLASK_PORT
-    app.run(debug=True, port=FLASK_PORT)
+    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true", port=FLASK_PORT)
 
 
 if __name__ == "__main__":

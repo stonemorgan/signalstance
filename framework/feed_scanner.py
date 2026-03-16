@@ -132,6 +132,7 @@ def score_articles(articles):
             messages=[
                 {"role": "user", "content": f"Score these articles for relevance:\n{article_list}"}
             ],
+            timeout=60,
         )
 
         response_text = response.content[0].text.strip()
