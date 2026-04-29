@@ -33,7 +33,7 @@ signalstance/
 │   │   └── index.html         (full SPA, vanilla JS, apiFetch helper)
 │   ├── static/
 │   │   └── style.css          (dark mode, responsive)
-│   └── tests/                 (122 tests, ~3-4s, no external deps)
+│   └── tests/                 (136 tests, ~3-4s, no external deps)
 │       ├── conftest.py        (shared fixtures, in-memory SQLite)
 │       ├── test_app_security.py
 │       ├── test_database.py
@@ -133,8 +133,9 @@ Prefix indicates the operation:
 ### Flask Routes
 - RESTful endpoints under `/api/*`
 - All API responses return JSON with a `success` boolean field
-- Error handling via `_handle_api_error(e)` which categorizes exceptions:
-  - 429 → rate limit, 503 → timeout/network, 401 → auth, 500 → generic
+- Routes that call the Anthropic API use `@require_api_key` to short-circuit with 503 when `ANTHROPIC_API_KEY` is unset — don't reinvent the inline check
+- Generation routes persist drafts via `_save_drafts(insight_id, drafts)` — don't open a new enumerate/save_generation loop in route bodies
+- Error handling via `_handle_api_error(e)` for Anthropic-API-adjacent exceptions (429/503/401/500); catch-all `except Exception` should `return _server_error(e)` so the full exception is logged and only a generic message reaches the client. ValueError 400s with hand-crafted messages (e.g., "Slot not found") still surface their `str(e)`.
 - Input validation: check required fields, validate categories against known list
 - Background operations use daemon threads (feed refresh, carousel cleanup)
 
@@ -187,9 +188,10 @@ Legal transitions enforced in `database.py:_LEGAL_TRANSITIONS` dict.
 ### Existing Security Measures
 - SSRF protection on feed URLs (`_is_safe_url()` in app.py)
 - Path traversal protection on carousel downloads (realpath check)
-- Error responses return JSON, not HTML tracebacks
+- Error responses return JSON, not HTML tracebacks; `_server_error()` keeps raw exception text out of 500 responses (logged via `app.logger.exception`)
 - Input validation on categories, required fields, URL formats
 - Rate limit error handling (429 from Claude API)
+- Prompt injection resistance: untrusted content (insights, URLs, feed-article fields) is wrapped in XML tags via `engine._xml_wrap()` before reaching Claude; system prompts append `engine._SECURITY_GUARDRAIL` instructing the model to treat tagged content as data. Closing-tag defang prevents wrapped values from escaping the delimiter.
 
 ## Testing Requirements
 
@@ -212,7 +214,7 @@ cd framework && python -m pytest tests/ -v
 - Config validation tests go in `test_config_validation.py`
 - Migration tests go in `test_migrations.py`
 - New test files: `test_<module>.py` in `framework/tests/`
-- Current count: 122 tests, ~3-4 seconds
+- Current count: 136 tests, ~3-4 seconds
 
 ## Database Schema
 

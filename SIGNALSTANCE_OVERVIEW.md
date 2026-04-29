@@ -60,7 +60,7 @@ signalstance/
 │   ├── migrations/           # Numbered SQL migrations (PRAGMA user_version)
 │   ├── templates/index.html  # Single-page app (apiFetch + hash routing for back-button)
 │   ├── static/style.css      # Stylesheet with dark mode
-│   └── tests/                # pytest suite (122 tests, conftest + 5 test files)
+│   └── tests/                # pytest suite (136 tests, conftest + 5 test files)
 │
 ├── tenants/
 │   ├── _template/            # Blueprint for new tenants
@@ -148,6 +148,9 @@ Every generation is persisted. The UI exposes an **Insight Bank** (raw observati
 - Frontend HTTP errors flow through `apiFetch()` → `.catch(err => ...)` consistently; no silent failures on 4xx/5xx.
 - SPA tab + calendar week persisted in `location.hash` (`#/create | #/calendar | #/calendar/YYYY-MM-DD | #/feed`); browser back/forward navigates between views.
 - `/api/history` and `/api/feeds` routes use batch queries (`IN`-clause + `LEFT JOIN GROUP BY`) — eliminates the prior 1+N patterns (history was up to 121 queries → now 3; feeds was 1+N → 1).
+- Prompt-injection resistance: untrusted user / RSS content (insights, URLs, article fields) is wrapped in XML delimiters via `engine._xml_wrap()` before reaching Claude, with literal closing tags defanged so values can't escape the wrapper. A `_SECURITY_GUARDRAIL` is appended to every system prompt instructing Claude to treat tagged content as data, not instructions.
+- Sanitized server errors: every catch-all `except Exception` flows through `_server_error(e)`, which logs the full exception (with traceback) via `app.logger.exception()` and returns a generic message. No more file paths, schema details, or Python internals in 500 responses; `ValueError` 400s with hand-crafted domain messages still surface their text.
+- Centralized API-key gating + draft persistence: routes that call Claude use the `@require_api_key` decorator (uniform 503), and all generation routes persist drafts via `_save_drafts(insight_id, drafts)` instead of duplicating the loop in 5 places.
 
 ### 4.7 Audit suite (Claude Code only)
 
@@ -260,7 +263,7 @@ python run.py --list
 
 ```bash
 cd framework && python -m pytest tests/ -v
-# 122 tests, ~3-4s, no network or API key required
+# 136 tests, ~3-4s, no network or API key required
 ```
 
 ### Environment variables

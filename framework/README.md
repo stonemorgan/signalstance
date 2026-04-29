@@ -70,7 +70,7 @@ signalstance/
 │   ├── requirements.txt          # Python dependencies
 │   ├── templates/index.html      # Frontend SPA (apiFetch wraps all fetch calls; hash routing for back-button)
 │   ├── static/style.css          # Styling
-│   └── tests/                    # Pytest suite (122 tests, no API keys needed)
+│   └── tests/                    # Pytest suite (136 tests, no API keys needed)
 │       ├── conftest.py           # Shared fixtures (in-memory DB, patched config)
 │       ├── test_database.py      # Database CRUD, state machine, FK enforcement
 │       ├── test_engine_parsing.py # Draft/carousel parsing, field extraction
@@ -289,11 +289,11 @@ cd framework
 python -m pytest tests/ -v
 ```
 
-**122 tests** across 5 modules, executing in ~3 seconds:
+**136 tests** across 5 modules, executing in ~3 seconds:
 
 - **`test_database.py`** (46 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency, batch helpers (`get_carousel_data_for_generations`, `get_feeds_with_article_counts`), multi-insight history grouping.
-- **`test_engine_parsing.py`** (29 tests) — `parse_drafts()` with well-formed/malformed/edge-case inputs, carousel content parsing for all 3 templates (tips, before/after, myth/reality), `_extract_field()` helper.
-- **`test_app_security.py`** (28 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization.
+- **`test_engine_parsing.py`** (34 tests) — `parse_drafts()` with well-formed/malformed/edge-case inputs, carousel content parsing for all 3 templates (tips, before/after, myth/reality), `_extract_field()` helper, `_xml_wrap` prompt-injection delimiter (defang, `None`/non-string handling, tag-specific defanging).
+- **`test_app_security.py`** (37 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization, `_server_error` sanitization (no leak of raw exception text), preservation of ValueError 400 messages, `_save_drafts` persistence + missing-`angle` fallback, `require_api_key` short-circuit + pass-through.
 - **`test_config_validation.py`** (11 tests) — `ConfigError` raised on malformed JSON, missing required keys, wrong types, unknown weekdays, missing day subkeys, missing suggested-time entries.
 - **`test_migrations.py`** (8 tests) — fresh DB stamps latest `user_version`, legacy DB at `user_version=0` upgrades with data preserved, idempotent re-run, CASCADE delete on generations/feed_articles/carousel_data, SET NULL on calendar_slots.
 
