@@ -40,16 +40,16 @@
             <div id="today-banner" class="today-banner hidden"></div>
         </header>
 
-        <div class="tab-bar">
-            <button class="tab-btn active" data-tab="create" id="tab-btn-create">Create</button>
-            <button class="tab-btn" data-tab="calendar" id="tab-btn-calendar">Calendar</button>
-            <button class="tab-btn" data-tab="feed" id="tab-btn-feed">Feed</button>
+        <div class="tab-bar" role="tablist" aria-label="Sections">
+            <button class="tab-btn active" data-tab="create" id="tab-btn-create" role="tab" aria-selected="true" aria-controls="tab-create" tabindex="0">Create</button>
+            <button class="tab-btn" data-tab="calendar" id="tab-btn-calendar" role="tab" aria-selected="false" aria-controls="tab-calendar" tabindex="-1">Calendar</button>
+            <button class="tab-btn" data-tab="feed" id="tab-btn-feed" role="tab" aria-selected="false" aria-controls="tab-feed" tabindex="-1">Feed</button>
         </div>
 
-        <div id="tab-create">
+        <div id="tab-create" role="tabpanel" aria-labelledby="tab-btn-create" tabindex="0">
         <div id="slot-context" class="slot-context hidden">
             <span id="slot-context-text"></span>
-            <button id="slot-context-close" class="slot-context-close">&times;</button>
+            <button id="slot-context-close" class="slot-context-close" aria-label="Clear slot context">&times;</button>
         </div>
         <section class="category-section">
             <h2>What kind of post?</h2>
@@ -59,10 +59,10 @@
         </section>
 
         <section class="input-section">
-            <textarea id="raw-input" placeholder="Select a category above to get started..." disabled></textarea>
+            <textarea id="raw-input" placeholder="Select a category above to get started..." aria-label="Insight or idea to expand into a post" disabled></textarea>
 
-            <div class="output-format-selector" id="output-format-selector" style="display:flex;align-items:center;gap:1.2rem;margin:0.75rem 0;padding:0.5rem 0;">
-                <span style="font-weight:600;color:var(--text-secondary);font-size:0.9rem;">Output:</span>
+            <div class="output-format-selector" id="output-format-selector" role="radiogroup" aria-labelledby="output-format-label" style="display:flex;align-items:center;gap:1.2rem;margin:0.75rem 0;padding:0.5rem 0;">
+                <span id="output-format-label" style="font-weight:600;color:var(--text-secondary);font-size:0.9rem;">Output:</span>
                 <label style="display:flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.9rem;">
                     <input type="radio" name="output-format" value="text" checked id="format-text"> Text Post
                 </label>
@@ -71,8 +71,8 @@
                 </label>
             </div>
 
-            <div id="template-picker" class="hidden" style="margin-bottom:0.75rem;padding:0.75rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);">
-                <span style="font-weight:600;font-size:0.85rem;color:var(--text-secondary);display:block;margin-bottom:0.5rem;">Template:</span>
+            <div id="template-picker" class="hidden" role="radiogroup" aria-labelledby="template-picker-label" style="margin-bottom:0.75rem;padding:0.75rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);">
+                <span id="template-picker-label" style="font-weight:600;font-size:0.85rem;color:var(--text-secondary);display:block;margin-bottom:0.5rem;">Template:</span>
                 <div style="display:flex;flex-direction:column;gap:0.5rem;">
                     <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;padding:0.4rem 0.5rem;border-radius:6px;transition:background 0.15s;" class="template-option">
                         <input type="radio" name="carousel-template" value="tips" checked style="margin-top:3px;">
@@ -106,7 +106,7 @@
             <div class="separator"><span>or</span></div>
 
             <div class="url-input-wrapper">
-                <input type="url" id="url-input" placeholder="Paste a URL to react to..." />
+                <input type="url" id="url-input" placeholder="Paste a URL to react to..." aria-label="Article URL to react to" />
                 <p class="url-hint">URL takes priority if both fields are filled</p>
             </div>
 
@@ -135,45 +135,45 @@
 
         <!-- Insight Bank -->
         <section class="collapsible-section">
-            <button class="collapsible-header" id="insight-bank-header">
+            <button class="collapsible-header" id="insight-bank-header" aria-expanded="false" aria-controls="insight-bank-body">
                 <span>Insight Bank</span>
                 <span class="badge" id="insight-bank-count"></span>
-                <span class="chevron">&#9662;</span>
+                <span class="chevron" aria-hidden="true">&#9662;</span>
             </button>
-            <div class="collapsible-body hidden" id="insight-bank-body">
+            <div class="collapsible-body hidden" id="insight-bank-body" role="region" aria-labelledby="insight-bank-header">
                 <div id="insight-bank-list"></div>
             </div>
         </section>
 
         <!-- History -->
         <section class="collapsible-section">
-            <button class="collapsible-header" id="history-header">
+            <button class="collapsible-header" id="history-header" aria-expanded="false" aria-controls="history-body">
                 <span>History</span>
                 <span class="badge-subtle">Last 30 days</span>
-                <span class="chevron">&#9662;</span>
+                <span class="chevron" aria-hidden="true">&#9662;</span>
             </button>
-            <div class="collapsible-body hidden" id="history-body">
+            <div class="collapsible-body hidden" id="history-body" role="region" aria-labelledby="history-header">
                 <div id="history-list"></div>
             </div>
         </section>
         </div><!-- end tab-create -->
 
-        <div id="tab-calendar" class="hidden">
+        <div id="tab-calendar" class="hidden" role="tabpanel" aria-labelledby="tab-btn-calendar" tabindex="0">
             <div class="cal-header">
                 <div class="cal-nav">
-                    <button class="cal-nav-btn" id="cal-prev">&laquo;</button>
+                    <button class="cal-nav-btn" id="cal-prev" aria-label="Previous week">&laquo;</button>
                     <div>
                         <span class="cal-week-label" id="cal-week-label"></span>
                         <span class="cal-week-relative" id="cal-week-relative"></span>
                     </div>
-                    <button class="cal-nav-btn" id="cal-next">&raquo;</button>
+                    <button class="cal-nav-btn" id="cal-next" aria-label="Next week">&raquo;</button>
                 </div>
                 <div class="cal-stats" id="cal-stats"></div>
             </div>
             <div id="cal-days"></div>
         </div><!-- end tab-calendar -->
 
-        <div id="tab-feed" class="hidden">
+        <div id="tab-feed" class="hidden" role="tabpanel" aria-labelledby="tab-btn-feed" tabindex="0">
             <!-- Article Feed View -->
             <div id="feed-articles-view">
                 <div class="feed-controls">
@@ -183,7 +183,7 @@
                     </div>
                     <div id="feed-refresh-status" class="feed-refresh-status hidden"></div>
                     <div class="feed-filter-row">
-                        <select id="feed-category-filter" class="feed-category-select">
+                        <select id="feed-category-filter" class="feed-category-select" aria-label="Filter feed by category">
                             <option value="">All categories</option>
                             <!-- Populated from config -->
                         </select>
@@ -200,9 +200,9 @@
                 <h2>Manage Feeds</h2>
                 <div id="feed-manage-list"></div>
                 <div class="feed-add-form" id="feed-add-form">
-                    <input type="url" id="feed-add-url" placeholder="Feed URL">
-                    <input type="text" id="feed-add-name" placeholder="Name">
-                    <select id="feed-add-category" class="feed-category-select">
+                    <input type="url" id="feed-add-url" placeholder="Feed URL" aria-label="New feed URL">
+                    <input type="text" id="feed-add-name" placeholder="Name" aria-label="New feed name">
+                    <select id="feed-add-category" class="feed-category-select" aria-label="New feed category">
                         <!-- Populated from config -->
                     </select>
                     <button class="btn-add-feed" id="feed-add-btn">Add Feed</button>
@@ -345,6 +345,57 @@
                 return body;
             }
 
+            // ---- Form State Persistence ----
+            // Survives page refresh inside a tab; cleared when the tab closes.
+            const FORM_STATE_KEY = 'ss-form-state-v1';
+
+            function saveFormState() {
+                try {
+                    const state = {
+                        cat: selectedCategory,
+                        raw: rawInput.value,
+                        url: urlInput.value,
+                        fmt: getOutputFormat(),
+                        tpl: getSelectedTemplate(),
+                        ibOpen: !insightBankBody.classList.contains('hidden'),
+                        histOpen: !historyBody.classList.contains('hidden'),
+                    };
+                    sessionStorage.setItem(FORM_STATE_KEY, JSON.stringify(state));
+                } catch (_) { /* sessionStorage may be disabled */ }
+            }
+
+            function restoreFormState() {
+                let s;
+                try {
+                    s = JSON.parse(sessionStorage.getItem(FORM_STATE_KEY) || 'null');
+                } catch (_) { return; }
+                if (!s) return;
+                if (s.raw) rawInput.value = s.raw;
+                if (s.url) urlInput.value = s.url;
+                // Restore format/template BEFORE selectCategory so any save
+                // triggered downstream captures the right values.
+                if (s.fmt === 'carousel') {
+                    formatCarousel.checked = true;
+                    templatePicker.classList.remove('hidden');
+                }
+                if (s.tpl) {
+                    const r = document.querySelector('input[name="carousel-template"][value="' + s.tpl + '"]');
+                    if (r) r.checked = true;
+                }
+                if (s.cat && document.querySelector('.category-btn[data-category="' + s.cat + '"]')) {
+                    selectCategory(s.cat);
+                }
+                if (s.ibOpen) {
+                    toggleCollapsible(insightBankBody, insightBankHeader);
+                    if (!insightBankLoaded) loadInsightBank();
+                }
+                if (s.histOpen) {
+                    toggleCollapsible(historyBody, historyHeader);
+                    if (!historyLoaded) loadHistory();
+                }
+                updateGenerateBtn();
+            }
+
             // ---- Config Loading ----
 
             async function loadConfig() {
@@ -380,6 +431,10 @@
                 // Render dynamic UI components
                 renderCategoryButtons();
                 renderFeedCategoryDropdowns();
+
+                // Restore any sessionStorage-persisted form state now that
+                // category buttons exist (selectCategory needs them).
+                restoreFormState();
             }
 
             function selectCategory(key) {
@@ -508,11 +563,10 @@
             function toggleCollapsible(body, header) {
                 body.classList.toggle('hidden');
                 const chevron = header.querySelector('.chevron');
-                if (body.classList.contains('hidden')) {
-                    chevron.style.transform = '';
-                } else {
-                    chevron.style.transform = 'rotate(180deg)';
-                }
+                const expanded = !body.classList.contains('hidden');
+                header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                chevron.style.transform = expanded ? 'rotate(180deg)' : '';
+                saveFormState();
             }
 
             function updateGenerateBtn() {
@@ -528,6 +582,7 @@
                 } else {
                     generateBtn.textContent = 'Generate Drafts';
                 }
+                saveFormState();
             }
 
             function doGenerate() {
@@ -1308,8 +1363,10 @@
             function renderTab(tabName, params) {
                 params = params || {};
                 tabBtns.forEach(b => {
-                    b.classList.remove('active');
-                    if (b.dataset.tab === tabName) b.classList.add('active');
+                    const isActive = b.dataset.tab === tabName;
+                    b.classList.toggle('active', isActive);
+                    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                    b.setAttribute('tabindex', isActive ? '0' : '-1');
                 });
                 tabCreate.classList.add('hidden');
                 tabCalendar.classList.add('hidden');
@@ -1373,6 +1430,20 @@
             tabBtns.forEach(btn => {
                 btn.addEventListener('click', () => {
                     switchToTab(btn.dataset.tab);
+                });
+                btn.addEventListener('keydown', e => {
+                    let target = null;
+                    const list = Array.from(tabBtns);
+                    const i = list.indexOf(btn);
+                    if (e.key === 'ArrowRight') target = list[(i + 1) % list.length];
+                    else if (e.key === 'ArrowLeft') target = list[(i - 1 + list.length) % list.length];
+                    else if (e.key === 'Home') target = list[0];
+                    else if (e.key === 'End') target = list[list.length - 1];
+                    if (target) {
+                        e.preventDefault();
+                        switchToTab(target.dataset.tab);
+                        target.focus();
+                    }
                 });
             });
 
