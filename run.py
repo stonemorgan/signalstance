@@ -65,9 +65,18 @@ def main():
     framework_dir = os.path.join(os.path.dirname(__file__), "framework")
     sys.path.insert(0, framework_dir)
 
-    # Import and run the app
-    from app import app
-    from config import FLASK_PORT
+    # Import and run the app. Surface tenant config problems as a one-line
+    # error rather than a stack trace. Match by class name so we don't have
+    # to import ConfigError from a module that may itself be the source of
+    # the failure.
+    try:
+        from app import app
+        from config import FLASK_PORT
+    except Exception as e:
+        if type(e).__name__ == "ConfigError":
+            print(f"Config error: {e}", file=sys.stderr)
+            sys.exit(1)
+        raise
     app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true", port=FLASK_PORT)
 
 
