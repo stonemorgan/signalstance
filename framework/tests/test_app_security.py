@@ -290,8 +290,69 @@ class TestHandleApiError:
             data = resp.get_json()
             assert data["success"] is False
 
+    def test_generic_error_does_not_leak_exception_text(self):
+        """The default branch of _handle_api_error must NOT echo the raw exception
+        message back to the client (audit finding M1: error messages leak internals)."""
+        from app import _handle_api_error, app as flask_app
+        secret = "/etc/passwd not found: sqlite3.OperationalError disk image malformed"
+        with flask_app.app_context():
+            resp, status_code = _handle_api_error(Exception(secret))
+            assert status_code == 500
+            data = resp.get_json()
+            assert secret not in data["error"]
+            assert "/etc/passwd" not in data["error"]
+            assert "sqlite3" not in data["error"]
+
     def test_network_error(self):
         from app import _handle_api_error, app as flask_app
         with flask_app.app_context():
             resp, status_code = _handle_api_error(Exception("Network is unreachable"))
             assert status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# _server_error — sanitizes generic 500 responses
+# ---------------------------------------------------------------------------
+
+class TestServerError:
+    def test_returns_500_with_sanitized_message(self):
+        from app import _server_error, app as flask_app
+        secret = "FileNotFoundError: [Errno 2] /home/user/.secret_db.sqlite"
+        with flask_app.app_context():
+            resp, status_code = _server_error(Exception(secret))
+            assert status_code == 500
+            data = resp.get_json()
+            assert data["success"] is False
+            assert secret not in data["error"]
+            assert "/home/user" not in data["error"]
+            assert ".sqlite" not in data["error"]
+
+    def test_unexpected_exception_in_route_returns_generic_message(self, db, monkeypatch):
+        """When a route catches an unexpected exception, the client must get a
+        generic message — never the raw exception text or stack trace details."""
+        from app import app as flask_app
+        import database
+
+        secret = "Synthetic AttributeError: 'NoneType' object has no attribute 'foo'"
+        def _boom(*_args, **_kwargs):
+            raise AttributeError(secret)
+        monkeypatch.setattr(database, "get_insights", _boom)
+        monkeypatch.setattr("app.get_insights", _boom)
+
+        flask_app.config["TESTING"] = True
+        with flask_app.test_client() as client:
+            resp = client.get("/api/insights")
+            assert resp.status_code == 500
+            data = resp.get_json()
+            assert data["success"] is False
+            assert secret not in data["error"]
+            assert "NoneType" not in data["error"]
+
+    def test_value_error_message_is_still_surfaced(self, db, app_client):
+        """ValueErrors are intentional domain errors with safe, crafted messages —
+        they should keep flowing to the client (e.g., 'Slot not found')."""
+        resp = app_client.post("/api/calendar/clear", json={"slot_id": 99999})
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "slot not found" in data["error"].lower()

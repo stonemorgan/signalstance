@@ -350,7 +350,7 @@ def copy():
         return jsonify({"success": True})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/today")
@@ -373,7 +373,7 @@ def today():
             })
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/insights")
@@ -385,7 +385,7 @@ def insights():
         rows, total = get_insights(unused_only=unused_only, limit=limit, offset=offset)
         return jsonify({"success": True, "insights": rows, "total": total})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/history")
@@ -409,7 +409,7 @@ def history():
                     }
         return jsonify({"success": True, "history": rows})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/insight/<int:insight_id>/generations")
@@ -419,7 +419,7 @@ def insight_generations(insight_id):
         gens = get_generations_for_insight(insight_id)
         return jsonify({"success": True, "generations": gens})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/calendar")
@@ -461,7 +461,7 @@ def calendar():
         })
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/calendar/assign", methods=["POST"])
@@ -493,7 +493,7 @@ def calendar_assign():
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/calendar/status", methods=["POST"])
@@ -518,7 +518,7 @@ def calendar_status():
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/calendar/clear", methods=["POST"])
@@ -536,7 +536,7 @@ def calendar_clear():
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/calendar/skip", methods=["POST"])
@@ -568,7 +568,7 @@ def calendar_skip():
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 # ── Feed & Article Routes ────────────────────────────────────────────────────
@@ -583,7 +583,7 @@ def feeds_list():
         stats = get_feed_stats()
         return jsonify({"success": True, "feeds": feeds, "stats": stats})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/feeds", methods=["POST"])
@@ -616,7 +616,7 @@ def feeds_add():
             "fetch_result": fetch_result,
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/feeds/<int:feed_id>", methods=["PUT"])
@@ -632,7 +632,7 @@ def feeds_update(feed_id):
         )
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/feeds/<int:feed_id>", methods=["DELETE"])
@@ -641,7 +641,7 @@ def feeds_delete(feed_id):
         delete_feed(feed_id)
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/articles")
@@ -662,7 +662,7 @@ def articles_list():
         )
         return jsonify({"success": True, "articles": articles})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route("/api/articles/<int:article_id>/generate", methods=["POST"])
@@ -720,7 +720,7 @@ def articles_dismiss(article_id):
         mark_article_dismissed(article_id)
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
 
 
 # ── Carousel Routes ──────────────────────────────────────────────────────
@@ -894,7 +894,18 @@ def feeds_refresh():
             },
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return _server_error(e)
+
+
+def _server_error(e, message="Something went wrong. Please try again."):
+    """Log an unexpected exception (with traceback) and return a sanitized 500 response.
+
+    Use for `except Exception` blocks where the exception text would otherwise leak
+    file paths, schema details, or framework internals to the client. Log goes to
+    `app.logger` (stderr by default); the client sees only `message`.
+    """
+    app.logger.exception("Server error: %s", e)
+    return jsonify({"success": False, "error": message}), 500
 
 
 def _handle_api_error(e):
@@ -922,8 +933,8 @@ def _handle_api_error(e):
             "error": "API key is invalid. Check your .env file.",
         }), 401
 
-    # Default
-    return jsonify({"success": False, "error": f"Generation failed: {error_str}"}), 500
+    # Default — log the full exception, return a generic message
+    return _server_error(e, message="Generation failed. Please try again.")
 
 
 def cleanup_old_carousels(days=30):
