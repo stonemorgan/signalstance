@@ -9,9 +9,20 @@ from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request, send_file
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from business_config import APP_NAME, BUSINESS, TENANT_DIR
-from config import ANTHROPIC_API_KEY, CONTENT_SCHEDULE, FLASK_PORT, SUGGESTED_TIMES
+from config import (
+    ANTHROPIC_API_KEY,
+    CONTENT_SCHEDULE,
+    FLASK_PORT,
+    RATE_LIMIT_DEFAULT,
+    RATE_LIMIT_ENABLED,
+    RATE_LIMIT_FEED_REFRESH,
+    RATE_LIMIT_GENERATIONS,
+    SUGGESTED_TIMES,
+)
 from database import (
     add_feed,
     assign_draft_to_slot,
@@ -52,9 +63,33 @@ from carousel_renderer import render_carousel
 from feed_scanner import fetch_feed, refresh_and_score
 
 app = Flask(__name__)
+app.config["RATELIMIT_ENABLED"] = RATE_LIMIT_ENABLED
 
 VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake", "autopilot", "url_react", "feed_react"}
 API_KEY_MISSING = not ANTHROPIC_API_KEY
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[RATE_LIMIT_DEFAULT],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
+
+
+@app.errorhandler(429)
+def _ratelimit_handler(e):
+    """Return the standard JSON shape for rate-limit responses, with Retry-After."""
+    description = getattr(e, "description", "") or ""
+    response = jsonify({
+        "success": False,
+        "error": f"Rate limit exceeded ({description}). Try again shortly.",
+    })
+    response.status_code = 429
+    current = limiter.current_limit
+    if current is not None and getattr(current, "reset_at", None):
+        response.headers["Retry-After"] = str(max(0, int(current.reset_at - time.time())))
+    return response
 
 
 def require_api_key(view):
@@ -154,6 +189,7 @@ def get_config():
 
 
 @app.route("/api/generate", methods=["POST"])
+@limiter.limit(RATE_LIMIT_GENERATIONS)
 @require_api_key
 def generate():
     try:
@@ -207,6 +243,7 @@ def generate():
 
 
 @app.route("/api/generate/autopilot", methods=["POST"])
+@limiter.limit(RATE_LIMIT_GENERATIONS)
 @require_api_key
 def generate_autopilot_route():
     try:
@@ -279,6 +316,7 @@ def generate_autopilot_route():
 
 
 @app.route("/api/generate/react", methods=["POST"])
+@limiter.limit(RATE_LIMIT_GENERATIONS)
 @require_api_key
 def generate_react_route():
     try:
@@ -647,6 +685,7 @@ def articles_list():
 
 
 @app.route("/api/articles/<int:article_id>/generate", methods=["POST"])
+@limiter.limit(RATE_LIMIT_GENERATIONS)
 @require_api_key
 def articles_generate(article_id):
     try:
@@ -698,6 +737,7 @@ VALID_TEMPLATES = {"tips", "beforeafter", "mythreality"}
 
 
 @app.route("/api/generate/carousel", methods=["POST"])
+@limiter.limit(RATE_LIMIT_GENERATIONS)
 @require_api_key
 def generate_carousel_route():
     try:
@@ -776,6 +816,7 @@ def download_carousel(generation_id):
 
 
 @app.route("/api/generate/carousel/regenerate", methods=["POST"])
+@limiter.limit(RATE_LIMIT_GENERATIONS)
 @require_api_key
 def regenerate_carousel_route():
     try:
@@ -845,6 +886,7 @@ def regenerate_carousel_route():
 
 
 @app.route("/api/feeds/refresh", methods=["POST"])
+@limiter.limit(RATE_LIMIT_FEED_REFRESH)
 def feeds_refresh():
     try:
         results = refresh_and_score()

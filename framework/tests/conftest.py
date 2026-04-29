@@ -73,15 +73,21 @@ def app_client(monkeypatch, db):
     """Create a Flask test client with an in-memory database.
 
     Patches the API key so the app can run without external dependencies.
+    Rate limiting is disabled by default — tests that exercise it should
+    re-enable via `flask_app.config["RATELIMIT_ENABLED"] = True` and reset
+    the limiter storage between cases.
     """
     import config
 
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "test-key-not-real")
 
-    from app import app as flask_app
+    from app import app as flask_app, limiter
 
     flask_app.config["TESTING"] = True
     flask_app.config["DEBUG"] = False
+    flask_app.config["RATELIMIT_ENABLED"] = False
+    limiter.enabled = False
+    limiter.reset()
 
     with flask_app.test_client() as client:
         yield client
