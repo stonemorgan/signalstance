@@ -323,12 +323,33 @@
                 updateGenerateBtn();
             });
 
+            // ---- API Helper ----
+            // Wraps fetch() so HTTP errors and non-JSON responses surface as
+            // thrown Errors with a meaningful message, instead of being
+            // silently consumed by the existing data.success branch logic.
+            async function apiFetch(url, options) {
+                const r = await fetch(url, options);
+                let body = null;
+                try {
+                    body = await r.json();
+                } catch (_) {
+                    if (!r.ok) {
+                        throw new Error('Server error ' + r.status + ' ' + r.statusText);
+                    }
+                    throw new Error('Server returned an invalid response.');
+                }
+                if (!r.ok) {
+                    const msg = (body && body.error) || ('Server error ' + r.status + ' ' + r.statusText);
+                    throw new Error(msg);
+                }
+                return body;
+            }
+
             // ---- Config Loading ----
 
             async function loadConfig() {
                 try {
-                    const resp = await fetch('/api/config');
-                    APP_CONFIG = await resp.json();
+                    APP_CONFIG = await apiFetch('/api/config');
                     applyConfig();
                 } catch (e) {
                     console.error('Failed to load config:', e);
@@ -422,15 +443,14 @@
             shortcutHint.textContent = isMac ? '\u2318+Enter to generate' : 'Ctrl+Enter to generate';
 
             // Fetch today's suggestion
-            fetch('/api/today')
-                .then(r => r.json())
+            apiFetch('/api/today')
                 .then(data => {
                     if (data.day) {
                         todayBanner.innerHTML = '<strong>' + escapeHtml(data.day) + ' \u2014 ' + escapeHtml(data.type) + ':</strong> ' + escapeHtml(data.suggestion);
                         todayBanner.classList.remove('hidden');
                     }
                 })
-                .catch(() => {});
+                .catch(err => console.error('today suggestion failed:', err));
 
             // Input change listeners
             rawInput.addEventListener('input', updateGenerateBtn);
@@ -538,30 +558,25 @@
                 const payload = { category: selectedCategory, raw_input: text };
                 if (forSlotId) payload.for_slot_id = forSlotId;
 
-                fetch('/api/generate', {
+                apiFetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 })
-                .then(r => r.json())
                 .then(data => {
                     hideLoading();
                     regenerateBtn.disabled = false;
-                    if (data.success) {
-                        currentDrafts = data.drafts;
-                        currentCarousel = null;
-                        renderDrafts(data.drafts);
-                        results.classList.remove('hidden');
-                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        refreshSideSections();
-                    } else {
-                        showError(data.error || 'Something went wrong.');
-                    }
+                    currentDrafts = data.drafts;
+                    currentCarousel = null;
+                    renderDrafts(data.drafts);
+                    results.classList.remove('hidden');
+                    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    refreshSideSections();
                 })
                 .catch(err => {
                     hideLoading();
                     regenerateBtn.disabled = false;
-                    showError('Network error. Check your internet connection and try again.');
+                    showError(err.message || 'Something went wrong.');
                 });
             }
 
@@ -574,7 +589,7 @@
                 hideSource();
                 results.classList.add('hidden');
 
-                fetch('/api/generate/carousel', {
+                apiFetch('/api/generate/carousel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -583,26 +598,21 @@
                         template_type: templateType,
                     })
                 })
-                .then(r => r.json())
                 .then(data => {
                     hideLoading();
                     regenerateBtn.disabled = false;
-                    if (data.success) {
-                        currentCarousel = data.carousel;
-                        currentCarouselInsightId = data.insight_id;
-                        currentDrafts = null;
-                        renderCarouselResult(data.carousel, data.insight_id, data.generation_id);
-                        results.classList.remove('hidden');
-                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        refreshSideSections();
-                    } else {
-                        showError(data.error || 'Carousel generation failed.');
-                    }
+                    currentCarousel = data.carousel;
+                    currentCarouselInsightId = data.insight_id;
+                    currentDrafts = null;
+                    renderCarouselResult(data.carousel, data.insight_id, data.generation_id);
+                    results.classList.remove('hidden');
+                    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    refreshSideSections();
                 })
-                .catch(() => {
+                .catch(err => {
                     hideLoading();
                     regenerateBtn.disabled = false;
-                    showError('Network error. Check your internet connection and try again.');
+                    showError(err.message || 'Carousel generation failed.');
                 });
             }
 
@@ -613,30 +623,25 @@
                 hideSource();
                 results.classList.add('hidden');
 
-                fetch('/api/generate/react', {
+                apiFetch('/api/generate/react', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
                 })
-                .then(r => r.json())
                 .then(data => {
                     hideLoading();
                     regenerateBtn.disabled = false;
-                    if (data.success) {
-                        currentDrafts = data.drafts;
-                        showSource(data.source_summary, data.source_url, 'url');
-                        renderDrafts(data.drafts);
-                        results.classList.remove('hidden');
-                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        refreshSideSections();
-                    } else {
-                        showError(data.error || 'Something went wrong.');
-                    }
+                    currentDrafts = data.drafts;
+                    showSource(data.source_summary, data.source_url, 'url');
+                    renderDrafts(data.drafts);
+                    results.classList.remove('hidden');
+                    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    refreshSideSections();
                 })
                 .catch(err => {
                     hideLoading();
                     regenerateBtn.disabled = false;
-                    showError('Network error. Check your internet connection and try again.');
+                    showError(err.message || 'Something went wrong.');
                 });
             }
 
@@ -648,12 +653,11 @@
                 results.classList.add('hidden');
                 autopilotBtn.disabled = true;
 
-                fetch('/api/generate/autopilot', {
+                apiFetch('/api/generate/autopilot', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})
                 })
-                .then(r => r.json())
                 .then(data => {
                     hideLoading();
                     autopilotBtn.disabled = false;
@@ -662,27 +666,23 @@
                         showError('Nothing compelling found in today\'s news cycle. Try again later or switch to manual mode.');
                         return;
                     }
-                    if (data.success) {
-                        currentDrafts = data.drafts;
-                        if (data.method === 'feed' && data.source_article) {
-                            showSource(data.source_summary, data.source_url, 'feed', data.source_article);
-                        } else {
-                            showSource(data.source_summary, data.source_url, 'autopilot');
-                        }
-                        renderDrafts(data.drafts);
-                        results.classList.remove('hidden');
-                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        refreshSideSections();
-                        loadAutopilotStatus();
+                    currentDrafts = data.drafts;
+                    if (data.method === 'feed' && data.source_article) {
+                        showSource(data.source_summary, data.source_url, 'feed', data.source_article);
                     } else {
-                        showError(data.error || 'Something went wrong.');
+                        showSource(data.source_summary, data.source_url, 'autopilot');
                     }
+                    renderDrafts(data.drafts);
+                    results.classList.remove('hidden');
+                    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    refreshSideSections();
+                    loadAutopilotStatus();
                 })
                 .catch(err => {
                     hideLoading();
                     autopilotBtn.disabled = false;
                     regenerateBtn.disabled = false;
-                    showError('Network error. Check your internet connection and try again.');
+                    showError(err.message || 'Something went wrong.');
                 });
             }
 
@@ -794,11 +794,11 @@
 
                 // Track the copy
                 if (generationId) {
-                    fetch('/api/copy', {
+                    apiFetch('/api/copy', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ generation_id: generationId })
-                    }).catch(() => {});
+                    }).catch(err => console.error('copy tracking failed:', err));
                 }
             }
 
@@ -924,7 +924,7 @@
                 hideError();
                 results.classList.add('hidden');
 
-                fetch('/api/generate/carousel/regenerate', {
+                apiFetch('/api/generate/carousel/regenerate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -932,23 +932,18 @@
                         template_type: templateType,
                     })
                 })
-                .then(r => r.json())
                 .then(data => {
                     hideLoading();
-                    if (data.success) {
-                        currentCarousel = data.carousel;
-                        currentCarouselInsightId = data.insight_id;
-                        renderCarouselResult(data.carousel, data.insight_id, data.generation_id);
-                        results.classList.remove('hidden');
-                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        refreshSideSections();
-                    } else {
-                        showError(data.error || 'Carousel regeneration failed.');
-                    }
+                    currentCarousel = data.carousel;
+                    currentCarouselInsightId = data.insight_id;
+                    renderCarouselResult(data.carousel, data.insight_id, data.generation_id);
+                    results.classList.remove('hidden');
+                    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    refreshSideSections();
                 })
-                .catch(() => {
+                .catch(err => {
                     hideLoading();
-                    showError('Network error. Check your connection and try again.');
+                    showError(err.message || 'Carousel regeneration failed.');
                 });
             }
 
@@ -983,11 +978,10 @@
 
             function loadInsightBank() {
                 insightBankList.innerHTML = '<p class="loading-text">Loading insights...</p>';
-                fetch('/api/insights?unused=true&limit=50')
-                    .then(r => r.json())
+                apiFetch('/api/insights?unused=true&limit=50')
                     .then(data => {
                         insightBankLoaded = true;
-                        if (!data.success || !data.insights || data.insights.length === 0) {
+                        if (!data.insights || data.insights.length === 0) {
                             insightBankList.innerHTML = '<p class="empty-state">No saved insights yet. Generate your first post to start building your bank.</p>';
                             insightBankCount.textContent = '';
                             return;
@@ -995,7 +989,8 @@
                         insightBankCount.textContent = data.total + ' saved';
                         renderInsightBank(data.insights);
                     })
-                    .catch(() => {
+                    .catch(err => {
+                        console.error('insight bank load failed:', err);
                         insightBankList.innerHTML = '<p class="empty-state">Could not load insights.</p>';
                     });
             }
@@ -1077,17 +1072,17 @@
 
             function loadHistory() {
                 historyList.innerHTML = '<p class="loading-text">Loading history...</p>';
-                fetch('/api/history?limit=30')
-                    .then(r => r.json())
+                apiFetch('/api/history?limit=30')
                     .then(data => {
                         historyLoaded = true;
-                        if (!data.success || !data.history || data.history.length === 0) {
+                        if (!data.history || data.history.length === 0) {
                             historyList.innerHTML = '<p class="empty-state">No generation history yet. Generate your first post to see it here.</p>';
                             return;
                         }
                         renderHistory(data.history);
                     })
-                    .catch(() => {
+                    .catch(err => {
+                        console.error('history load failed:', err);
                         historyList.innerHTML = '<p class="empty-state">Could not load history.</p>';
                     });
             }
@@ -1368,18 +1363,14 @@
 
             function fetchCalendar(weekParam) {
                 calDays.innerHTML = '<p class="loading-text">Loading calendar...</p>';
-                fetch('/api/calendar?week=' + encodeURIComponent(weekParam))
-                    .then(r => r.json())
+                apiFetch('/api/calendar?week=' + encodeURIComponent(weekParam))
                     .then(data => {
-                        if (!data.success) {
-                            calDays.innerHTML = '<p class="empty-state">Could not load calendar.</p>';
-                            return;
-                        }
                         calendarWeekStart = data.week_start;
                         renderCalendarHeader(data);
                         renderCalendarDays(data.slots);
                     })
-                    .catch(() => {
+                    .catch(err => {
+                        console.error('calendar load failed:', err);
                         calDays.innerHTML = '<p class="empty-state">Could not load calendar.</p>';
                     });
             }
@@ -1652,10 +1643,9 @@
                 panel.innerHTML = '<p class="loading-text">Loading insights...</p>';
                 card.appendChild(panel);
 
-                fetch('/api/insights?limit=20')
-                    .then(r => r.json())
+                apiFetch('/api/insights?limit=20')
                     .then(data => {
-                        if (!data.success || !data.insights || data.insights.length === 0) {
+                        if (!data.insights || data.insights.length === 0) {
                             panel.innerHTML = '<p class="empty-state">No insights available. Generate some content first.</p>';
                             return;
                         }
@@ -1696,7 +1686,8 @@
 
                         renderBankItems(panel, showFiltered ? matched : data.insights, slot);
                     })
-                    .catch(() => {
+                    .catch(err => {
+                        console.error('insight bank picker load failed:', err);
                         panel.innerHTML = '<p class="empty-state">Could not load insights.</p>';
                     });
             }
@@ -1743,20 +1734,20 @@
             }
 
             function assignToSlot(slotId, generationId) {
-                fetch('/api/calendar/assign', {
+                apiFetch('/api/calendar/assign', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ slot_id: slotId, generation_id: generationId })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        clearSlotContext();
-                        scrollToSlotId = slotId;
-                        switchToTab('calendar');
-                    }
+                .then(() => {
+                    clearSlotContext();
+                    scrollToSlotId = slotId;
+                    switchToTab('calendar');
                 })
-                .catch(() => {});
+                .catch(err => {
+                    console.error('assign to slot failed:', err);
+                    alert('Could not assign draft: ' + err.message);
+                });
             }
 
             function doCopyAndSchedule(slot) {
@@ -1775,11 +1766,11 @@
 
                 // Track the copy
                 if (slot.draft && slot.draft.generation_id) {
-                    fetch('/api/copy', {
+                    apiFetch('/api/copy', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ generation_id: slot.draft.generation_id })
-                    }).catch(() => {});
+                    }).catch(err => console.error('copy tracking failed:', err));
                 }
 
                 // Open platform
@@ -1823,16 +1814,16 @@
                 confirmBtn.addEventListener('click', () => {
                     const time = timeInput.value.trim() || slot.suggested_time;
                     delete confirmingSlots[slot.id];
-                    fetch('/api/calendar/status', {
+                    apiFetch('/api/calendar/status', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ slot_id: slot.id, status: 'scheduled', scheduled_time: time })
                     })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success) fetchCalendar(calendarWeekStart || 'current');
-                    })
-                    .catch(() => {});
+                    .then(() => fetchCalendar(calendarWeekStart || 'current'))
+                    .catch(err => {
+                        console.error('mark scheduled failed:', err);
+                        alert('Could not mark as scheduled: ' + err.message);
+                    });
                 });
 
                 const cancelBtn = document.createElement('button');
@@ -1865,10 +1856,9 @@
                 panel.innerHTML = '<p class="loading-text">Loading drafts...</p>';
                 card.appendChild(panel);
 
-                fetch('/api/insight/' + slot.draft.insight_id + '/generations')
-                    .then(r => r.json())
+                apiFetch('/api/insight/' + slot.draft.insight_id + '/generations')
                     .then(data => {
-                        if (!data.success || !data.generations || data.generations.length === 0) {
+                        if (!data.generations || data.generations.length === 0) {
                             panel.innerHTML = '<p class="empty-state">No alternative drafts available.</p>';
                             return;
                         }
@@ -1902,16 +1892,16 @@
 
                             if (gen.id !== slot.generation_id) {
                                 item.addEventListener('click', () => {
-                                    fetch('/api/calendar/assign', {
+                                    apiFetch('/api/calendar/assign', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ slot_id: slot.id, generation_id: gen.id })
                                     })
-                                    .then(r => r.json())
-                                    .then(d => {
-                                        if (d.success) fetchCalendar(calendarWeekStart || 'current');
-                                    })
-                                    .catch(() => {});
+                                    .then(() => fetchCalendar(calendarWeekStart || 'current'))
+                                    .catch(err => {
+                                        console.error('change-draft assign failed:', err);
+                                        alert('Could not change draft: ' + err.message);
+                                    });
                                 });
                             }
 
@@ -1937,51 +1927,52 @@
                         });
                         panel.appendChild(regenBtn);
                     })
-                    .catch(() => {
+                    .catch(err => {
+                        console.error('change-draft load failed:', err);
                         panel.innerHTML = '<p class="empty-state">Could not load drafts.</p>';
                     });
             }
 
             function doClearSlot(slotId) {
-                fetch('/api/calendar/clear', {
+                apiFetch('/api/calendar/clear', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ slot_id: slotId })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) fetchCalendar(calendarWeekStart || 'current');
-                })
-                .catch(() => {});
+                .then(() => fetchCalendar(calendarWeekStart || 'current'))
+                .catch(err => {
+                    console.error('clear slot failed:', err);
+                    alert('Could not clear slot: ' + err.message);
+                });
             }
 
             function doMarkPublished(slotId) {
-                fetch('/api/calendar/status', {
+                apiFetch('/api/calendar/status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ slot_id: slotId, status: 'published' })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) fetchCalendar(calendarWeekStart || 'current');
-                })
-                .catch(() => {});
+                .then(() => fetchCalendar(calendarWeekStart || 'current'))
+                .catch(err => {
+                    console.error('mark published failed:', err);
+                    alert('Could not mark as published: ' + err.message);
+                });
             }
 
             function doUnschedule(slotId) {
-                fetch('/api/calendar/status', {
+                apiFetch('/api/calendar/status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ slot_id: slotId, status: 'draft_ready' })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        unscheduleNoteSlotId = slotId;
-                        fetchCalendar(calendarWeekStart || 'current');
-                    }
+                .then(() => {
+                    unscheduleNoteSlotId = slotId;
+                    fetchCalendar(calendarWeekStart || 'current');
                 })
-                .catch(() => {});
+                .catch(err => {
+                    console.error('unschedule failed:', err);
+                    alert('Could not unschedule: ' + err.message);
+                });
             }
 
             function showSlotPicker(anchorBtn, generationId) {
@@ -1997,15 +1988,14 @@
 
                 // Fetch current and next week slots
                 Promise.all([
-                    fetch('/api/calendar?week=current').then(r => r.json()),
-                    fetch('/api/calendar?week=next').then(r => r.json())
+                    apiFetch('/api/calendar?week=current'),
+                    apiFetch('/api/calendar?week=next')
                 ]).then(([cur, nxt]) => {
                     const empty = [];
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
 
                     [cur, nxt].forEach(week => {
-                        if (!week.success) return;
                         week.slots.forEach(s => {
                             if (s.status === 'empty' && new Date(s.slot_date + 'T00:00:00') >= today) {
                                 empty.push(s);
@@ -2040,22 +2030,23 @@
                     cancelBtn.textContent = 'Cancel';
                     cancelBtn.addEventListener('click', () => picker.remove());
                     picker.appendChild(cancelBtn);
-                }).catch(() => {
+                }).catch(err => {
+                    console.error('slot picker load failed:', err);
                     picker.innerHTML = '<p class="slot-picker-empty">Could not load calendar.</p>';
                 });
             }
 
             function doSkipToggle(slotId) {
-                fetch('/api/calendar/skip', {
+                apiFetch('/api/calendar/skip', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ slot_id: slotId })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) fetchCalendar(calendarWeekStart || 'current');
-                })
-                .catch(() => {});
+                .then(() => fetchCalendar(calendarWeekStart || 'current'))
+                .catch(err => {
+                    console.error('skip toggle failed:', err);
+                    alert('Could not toggle skip: ' + err.message);
+                });
             }
 
             // ── Feed Tab ────────────────────────────────────────────────────
@@ -2104,13 +2095,8 @@
                 if (cat) params.set('category', cat);
                 if (feedRelevanceFilter.checked) params.set('min_relevance', '0.7');
 
-                fetch('/api/articles?' + params.toString())
-                    .then(r => r.json())
+                apiFetch('/api/articles?' + params.toString())
                     .then(data => {
-                        if (!data.success) {
-                            feedArticlesList.innerHTML = '<p class="empty-state">Could not load articles.</p>';
-                            return;
-                        }
                         const articles = data.articles || [];
                         feedArticleCount.textContent = articles.length + ' article' + (articles.length !== 1 ? 's' : '');
 
@@ -2125,15 +2111,14 @@
 
                         renderFeedArticles(articles);
                     })
-                    .catch(() => {
+                    .catch(err => {
+                        console.error('articles load failed:', err);
                         feedArticlesList.innerHTML = '<p class="empty-state">Could not load articles.</p>';
                     });
 
                 // Update last refreshed time
-                fetch('/api/feeds')
-                    .then(r => r.json())
+                apiFetch('/api/feeds')
                     .then(data => {
-                        if (!data.success) return;
                         const feeds = data.feeds || [];
                         const times = feeds.map(f => f.last_fetched_at).filter(Boolean);
                         if (times.length > 0) {
@@ -2143,7 +2128,7 @@
                             feedLastRefreshed.textContent = 'Never refreshed';
                         }
                     })
-                    .catch(() => {});
+                    .catch(err => console.error('feeds last-refreshed load failed:', err));
             }
 
             function renderFeedArticles(articles) {
@@ -2239,63 +2224,53 @@
                 results.classList.add('hidden');
                 lastGenerationMode = 'autopilot';
 
-                fetch('/api/articles/' + articleId + '/generate', {
+                apiFetch('/api/articles/' + articleId + '/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 })
-                .then(r => r.json())
                 .then(data => {
                     hideLoading();
                     btn.disabled = false;
                     btn.textContent = 'Generate Post From This';
-
-                    if (data.success) {
-                        currentDrafts = data.drafts;
-                        if (data.source_article) {
-                            showSource(data.source_article.title, data.source_article.url, 'feed', data.source_article);
-                        }
-                        renderDrafts(data.drafts);
-                        results.classList.remove('hidden');
-                        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        refreshSideSections();
-                        loadAutopilotStatus();
-                        // Refresh feed list to reflect used status
-                        feedLoaded = false;
-                    } else {
-                        showError(data.error || 'Could not generate from this article.');
+                    currentDrafts = data.drafts;
+                    if (data.source_article) {
+                        showSource(data.source_article.title, data.source_article.url, 'feed', data.source_article);
                     }
+                    renderDrafts(data.drafts);
+                    results.classList.remove('hidden');
+                    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    refreshSideSections();
+                    loadAutopilotStatus();
+                    // Refresh feed list to reflect used status
+                    feedLoaded = false;
                 })
-                .catch(() => {
+                .catch(err => {
                     hideLoading();
                     btn.disabled = false;
                     btn.textContent = 'Generate Post From This';
-                    showError('Network error. Check your connection and try again.');
+                    showError(err.message || 'Could not generate from this article.');
                 });
             }
 
             function doDismissArticle(articleId, card) {
                 card.classList.add('dismissing');
-                fetch('/api/articles/' + articleId + '/dismiss', {
+                apiFetch('/api/articles/' + articleId + '/dismiss', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        setTimeout(() => {
-                            card.remove();
-                            // Update count
-                            const remaining = feedArticlesList.querySelectorAll('.article-card').length;
-                            feedArticleCount.textContent = remaining + ' article' + (remaining !== 1 ? 's' : '');
-                            if (remaining === 0) {
-                                feedArticlesList.innerHTML = '<p class="empty-state">No articles match the current filters. Try broadening your search or refreshing feeds.</p>';
-                            }
-                        }, 300);
-                    } else {
-                        card.classList.remove('dismissing');
-                    }
+                .then(() => {
+                    setTimeout(() => {
+                        card.remove();
+                        // Update count
+                        const remaining = feedArticlesList.querySelectorAll('.article-card').length;
+                        feedArticleCount.textContent = remaining + ' article' + (remaining !== 1 ? 's' : '');
+                        if (remaining === 0) {
+                            feedArticlesList.innerHTML = '<p class="empty-state">No articles match the current filters. Try broadening your search or refreshing feeds.</p>';
+                        }
+                    }, 300);
                 })
-                .catch(() => {
+                .catch(err => {
+                    console.error('dismiss article failed:', err);
                     card.classList.remove('dismissing');
                 });
             }
@@ -2306,34 +2281,28 @@
                 feedRefreshStatus.textContent = 'Scanning feeds... This may take 30\u201360 seconds.';
                 feedRefreshStatus.classList.remove('hidden');
 
-                fetch('/api/feeds/refresh', {
+                apiFetch('/api/feeds/refresh', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 })
-                .then(r => r.json())
                 .then(data => {
                     feedRefreshBtn.disabled = false;
                     feedRefreshBtn.textContent = 'Refresh Feeds';
-
-                    if (data.success) {
-                        const fr = data.fetch_results || {};
-                        const sr = data.scoring_results || {};
-                        feedRefreshStatus.textContent = 'Found ' + (fr.new_articles || 0) + ' new articles, ' + (sr.high_relevance || 0) + ' highly relevant';
-                        if (fr.failed > 0) {
-                            feedRefreshStatus.textContent += ' (' + fr.failed + ' feed' + (fr.failed !== 1 ? 's' : '') + ' failed)';
-                        }
-                        setTimeout(() => feedRefreshStatus.classList.add('hidden'), 6000);
-                        loadFeedArticles();
-                        loadAutopilotStatus();
-                    } else {
-                        feedRefreshStatus.textContent = 'Refresh failed: ' + (data.error || 'Unknown error');
-                        setTimeout(() => feedRefreshStatus.classList.add('hidden'), 5000);
+                    const fr = data.fetch_results || {};
+                    const sr = data.scoring_results || {};
+                    feedRefreshStatus.textContent = 'Found ' + (fr.new_articles || 0) + ' new articles, ' + (sr.high_relevance || 0) + ' highly relevant';
+                    if (fr.failed > 0) {
+                        feedRefreshStatus.textContent += ' (' + fr.failed + ' feed' + (fr.failed !== 1 ? 's' : '') + ' failed)';
                     }
+                    setTimeout(() => feedRefreshStatus.classList.add('hidden'), 6000);
+                    loadFeedArticles();
+                    loadAutopilotStatus();
                 })
-                .catch(() => {
+                .catch(err => {
+                    console.error('feeds refresh failed:', err);
                     feedRefreshBtn.disabled = false;
                     feedRefreshBtn.textContent = 'Refresh Feeds';
-                    feedRefreshStatus.textContent = 'Refresh failed. Check your connection.';
+                    feedRefreshStatus.textContent = 'Refresh failed: ' + (err.message || 'Unknown error');
                     setTimeout(() => feedRefreshStatus.classList.add('hidden'), 5000);
                 });
             }
@@ -2342,16 +2311,10 @@
 
             function loadFeedManagement() {
                 feedManageList.innerHTML = '<p class="loading-text">Loading feeds...</p>';
-                fetch('/api/feeds')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (!data.success) {
-                            feedManageList.innerHTML = '<p class="empty-state">Could not load feeds.</p>';
-                            return;
-                        }
-                        renderFeedManagement(data.feeds || []);
-                    })
-                    .catch(() => {
+                apiFetch('/api/feeds')
+                    .then(data => renderFeedManagement(data.feeds || []))
+                    .catch(err => {
+                        console.error('feeds load failed:', err);
                         feedManageList.innerHTML = '<p class="empty-state">Could not load feeds.</p>';
                     });
             }
@@ -2371,20 +2334,18 @@
                     toggle.className = 'feed-toggle';
                     toggle.checked = feed.enabled;
                     toggle.addEventListener('change', () => {
-                        fetch('/api/feeds/' + feed.id, {
+                        apiFetch('/api/feeds/' + feed.id, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ enabled: toggle.checked })
                         })
-                        .then(r => r.json())
-                        .then(d => {
-                            if (d.success) {
-                                row.classList.toggle('disabled', !toggle.checked);
-                            } else {
-                                toggle.checked = !toggle.checked;
-                            }
+                        .then(() => {
+                            row.classList.toggle('disabled', !toggle.checked);
                         })
-                        .catch(() => { toggle.checked = !toggle.checked; });
+                        .catch(err => {
+                            console.error('feed toggle failed:', err);
+                            toggle.checked = !toggle.checked;
+                        });
                     });
                     row.appendChild(toggle);
 
@@ -2428,10 +2389,12 @@
                     removeBtn.textContent = 'Remove';
                     removeBtn.addEventListener('click', () => {
                         if (confirm('Remove this feed and all its articles?')) {
-                            fetch('/api/feeds/' + feed.id, { method: 'DELETE' })
-                                .then(r => r.json())
-                                .then(d => { if (d.success) loadFeedManagement(); })
-                                .catch(() => {});
+                            apiFetch('/api/feeds/' + feed.id, { method: 'DELETE' })
+                                .then(() => loadFeedManagement())
+                                .catch(err => {
+                                    console.error('feed remove failed:', err);
+                                    alert('Could not remove feed: ' + err.message);
+                                });
                         }
                     });
                     row.appendChild(removeBtn);
@@ -2456,61 +2419,49 @@
                 feedAddBtn.textContent = 'Adding...';
                 feedAddFeedback.textContent = '';
 
-                fetch('/api/feeds', {
+                apiFetch('/api/feeds', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, name, category })
                 })
-                .then(r => r.json())
                 .then(data => {
                     feedAddBtn.disabled = false;
                     feedAddBtn.textContent = 'Add Feed';
-                    if (data.success) {
-                        feedAddFeedback.style.color = 'var(--accent)';
-                        const fr = data.fetch_result || {};
-                        if (fr.success) {
-                            feedAddFeedback.textContent = 'Added! Fetched ' + (fr.new_articles || 0) + ' articles.';
-                        } else {
-                            feedAddFeedback.textContent = 'Added, but initial fetch failed: ' + (fr.error || 'unknown error');
-                            feedAddFeedback.style.color = 'var(--tag-noticed-text)';
-                        }
-                        document.getElementById('feed-add-url').value = '';
-                        document.getElementById('feed-add-name').value = '';
-                        loadFeedManagement();
+                    feedAddFeedback.style.color = 'var(--accent)';
+                    const fr = data.fetch_result || {};
+                    if (fr.success) {
+                        feedAddFeedback.textContent = 'Added! Fetched ' + (fr.new_articles || 0) + ' articles.';
                     } else {
-                        feedAddFeedback.style.color = 'var(--error-text)';
-                        feedAddFeedback.textContent = data.error || 'Could not add feed.';
+                        feedAddFeedback.textContent = 'Added, but initial fetch failed: ' + (fr.error || 'unknown error');
+                        feedAddFeedback.style.color = 'var(--tag-noticed-text)';
                     }
+                    document.getElementById('feed-add-url').value = '';
+                    document.getElementById('feed-add-name').value = '';
+                    loadFeedManagement();
                 })
-                .catch(() => {
+                .catch(err => {
+                    console.error('feed add failed:', err);
                     feedAddBtn.disabled = false;
                     feedAddBtn.textContent = 'Add Feed';
                     feedAddFeedback.style.color = 'var(--error-text)';
-                    feedAddFeedback.textContent = 'Network error.';
+                    feedAddFeedback.textContent = err.message || 'Could not add feed.';
                 });
             });
 
             // ── Autopilot Status Line ───────────────────────────────────────
 
             function loadAutopilotStatus() {
-                fetch('/api/articles?unused_only=true&min_relevance=0.7&limit=1')
-                    .then(r => r.json())
+                apiFetch('/api/articles?unused_only=true&min_relevance=0.7&limit=1')
                     .then(data => {
-                        if (!data.success) return;
                         const count = (data.articles || []).length;
 
                         // Also check feeds for last refresh time
-                        fetch('/api/feeds')
-                            .then(r => r.json())
+                        apiFetch('/api/feeds')
                             .then(fdata => {
-                                if (!fdata.success) return;
                                 const stats = fdata.stats || {};
                                 const feeds = fdata.feeds || [];
                                 const times = feeds.map(f => f.last_fetched_at).filter(Boolean);
                                 const lastRefreshed = times.length > 0 ? relativeTime(times.reduce((a, b) => a > b ? a : b)) : null;
-
-                                const highCount = stats.high_relevance || 0;
-                                const unused = highCount; // approximate
 
                                 if (count > 0) {
                                     let statusText = 'Drawing from ' + (stats.high_relevance || count) + ' curated article' + ((stats.high_relevance || count) !== 1 ? 's' : '');
@@ -2520,9 +2471,9 @@
                                     autopilotStatus.textContent = 'No curated articles available \u00B7 Will search the web';
                                 }
                             })
-                            .catch(() => {});
+                            .catch(err => console.error('autopilot status feeds load failed:', err));
                     })
-                    .catch(() => {});
+                    .catch(err => console.error('autopilot status articles load failed:', err));
             }
 
             // Load autopilot status on page load
