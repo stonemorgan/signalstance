@@ -177,7 +177,6 @@ def get_generation_history(limit=30):
     """Get recent generation sessions grouped by insight."""
     conn = get_connection()
     try:
-        # Get recent insights that have generations
         insights = conn.execute(
             """SELECT i.id, i.category, i.raw_input, i.source_url, i.created_at, i.used
                FROM insights i
@@ -187,27 +186,41 @@ def get_generation_history(limit=30):
             (limit,),
         ).fetchall()
 
-        history = []
-        for insight in insights:
-            drafts = conn.execute(
-                """SELECT id, draft_number, content, copied, created_at
-                   FROM generations
-                   WHERE insight_id = ?
-                   ORDER BY draft_number""",
-                (insight["id"],),
-            ).fetchall()
+        if not insights:
+            return []
 
-            history.append({
+        insight_ids = [i["id"] for i in insights]
+        placeholders = ",".join("?" * len(insight_ids))
+        draft_rows = conn.execute(
+            f"""SELECT id, insight_id, draft_number, content, copied, created_at
+                FROM generations
+                WHERE insight_id IN ({placeholders})
+                ORDER BY insight_id, draft_number""",
+            insight_ids,
+        ).fetchall()
+
+        drafts_by_insight = {}
+        for d in draft_rows:
+            drafts_by_insight.setdefault(d["insight_id"], []).append({
+                "id": d["id"],
+                "draft_number": d["draft_number"],
+                "content": d["content"],
+                "copied": d["copied"],
+                "created_at": d["created_at"],
+            })
+
+        return [
+            {
                 "insight_id": insight["id"],
                 "category": insight["category"],
                 "raw_input": insight["raw_input"],
                 "source_url": insight["source_url"],
                 "generated_at": insight["created_at"],
                 "used": insight["used"],
-                "drafts": [dict(d) for d in drafts],
-            })
-
-        return history
+                "drafts": drafts_by_insight.get(insight["id"], []),
+            }
+            for insight in insights
+        ]
     finally:
         conn.close()
 
@@ -442,6 +455,24 @@ def get_feeds(enabled_only=True):
         conn.close()
 
 
+def get_feeds_with_article_counts(enabled_only=True):
+    """Like get_feeds() but joins feed_articles to include an article_count per feed."""
+    conn = get_connection()
+    try:
+        where_clause = "WHERE f.enabled = 1" if enabled_only else ""
+        rows = conn.execute(
+            f"""SELECT f.*, COALESCE(COUNT(a.id), 0) AS article_count
+                FROM feeds f
+                LEFT JOIN feed_articles a ON a.feed_id = f.id
+                {where_clause}
+                GROUP BY f.id
+                ORDER BY f.category, f.name"""
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def add_feed(url, name, category, weight=1.0):
     conn = get_connection()
     try:
@@ -637,6 +668,27 @@ def get_carousel_data(generation_id):
         d = dict(row)
         d["parsed_content"] = json.loads(d["parsed_content"])
         return d
+    finally:
+        conn.close()
+
+
+def get_carousel_data_for_generations(generation_ids):
+    """Batch-fetch carousel data for a list of generation IDs. Returns {generation_id: data}."""
+    if not generation_ids:
+        return {}
+    conn = get_connection()
+    try:
+        placeholders = ",".join("?" * len(generation_ids))
+        rows = conn.execute(
+            f"SELECT * FROM carousel_data WHERE generation_id IN ({placeholders})",
+            list(generation_ids),
+        ).fetchall()
+        result = {}
+        for row in rows:
+            d = dict(row)
+            d["parsed_content"] = json.loads(d["parsed_content"])
+            result[d["generation_id"]] = d
+        return result
     finally:
         conn.close()
 

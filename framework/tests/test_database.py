@@ -159,6 +159,30 @@ class TestGenerations:
         assert history[0]["insight_id"] == iid
         assert len(history[0]["drafts"]) == 2
 
+    def test_generation_history_groups_drafts_per_insight(self, db):
+        """Drafts must stay grouped under their own insight when many insights exist."""
+        import database
+
+        iid_a = database.save_insight("noticed", "insight A")
+        database.save_generation(iid_a, 1, "A1")
+        database.save_generation(iid_a, 2, "A2")
+
+        iid_b = database.save_insight("pattern", "insight B")
+        database.save_generation(iid_b, 1, "B1")
+
+        iid_c = database.save_insight("hottake", "insight C with no drafts")
+
+        history = database.get_generation_history(limit=10)
+        by_id = {h["insight_id"]: h for h in history}
+        assert iid_c not in by_id  # insights with no drafts are excluded
+        assert [d["content"] for d in by_id[iid_a]["drafts"]] == ["A1", "A2"]
+        assert [d["content"] for d in by_id[iid_b]["drafts"]] == ["B1"]
+
+    def test_generation_history_empty(self, db):
+        """No insights with drafts → empty list, no errors."""
+        import database
+        assert database.get_generation_history(limit=10) == []
+
 
 # ---------------------------------------------------------------------------
 # Calendar slots
@@ -491,6 +515,35 @@ class TestFeeds:
         feeds = database.get_feeds(enabled_only=False)
         assert len(feeds) == 0
 
+    def test_get_feeds_with_article_counts(self, db):
+        """Each feed gets an article_count via JOIN — feeds with no articles return 0."""
+        import database
+
+        fid_a, _ = database.add_feed("https://a.com/feed", "Feed A", "careers")
+        fid_b, _ = database.add_feed("https://b.com/feed", "Feed B", "leadership")
+        # Feed A has 2 articles; Feed B has none.
+        database.save_articles(fid_a, [
+            {"title": "T1", "url": "https://a.com/1", "summary": "s"},
+            {"title": "T2", "url": "https://a.com/2", "summary": "s"},
+        ])
+
+        feeds = database.get_feeds_with_article_counts(enabled_only=False)
+        by_id = {f["id"]: f for f in feeds}
+        assert by_id[fid_a]["article_count"] == 2
+        assert by_id[fid_b]["article_count"] == 0
+
+    def test_get_feeds_with_article_counts_respects_enabled_filter(self, db):
+        import database
+
+        fid_on, _ = database.add_feed("https://on.com/feed", "On", "careers")
+        fid_off, _ = database.add_feed("https://off.com/feed", "Off", "careers")
+        database.update_feed(fid_off, enabled=False)
+
+        enabled = database.get_feeds_with_article_counts(enabled_only=True)
+        all_feeds = database.get_feeds_with_article_counts(enabled_only=False)
+        assert {f["id"] for f in enabled} == {fid_on}
+        assert {f["id"] for f in all_feeds} == {fid_on, fid_off}
+
 
 # ---------------------------------------------------------------------------
 # Articles
@@ -628,6 +681,28 @@ class TestCarouselData:
         import database
         result = database.get_carousel_data(99999)
         assert result is None
+
+    def test_get_carousel_data_for_generations_batch(self, db):
+        """Batch helper returns a dict keyed by generation_id, parsed_content decoded."""
+        import database
+
+        iid = database.save_insight("pattern", "batch test")
+        gid_a = database.save_generation(iid, 1, "draft a")
+        gid_b = database.save_generation(iid, 2, "draft b")
+        gid_c = database.save_generation(iid, 3, "draft c (no carousel)")
+
+        database.save_carousel_data(gid_a, "tips", {"title": "A"}, "a.pdf", 5)
+        database.save_carousel_data(gid_b, "beforeafter", {"title": "B"}, "b.pdf", 4)
+
+        result = database.get_carousel_data_for_generations([gid_a, gid_b, gid_c])
+        assert set(result.keys()) == {gid_a, gid_b}
+        assert result[gid_a]["parsed_content"]["title"] == "A"
+        assert result[gid_b]["template_type"] == "beforeafter"
+
+    def test_get_carousel_data_for_generations_empty(self, db):
+        """Empty input must short-circuit to {} without opening a connection."""
+        import database
+        assert database.get_carousel_data_for_generations([]) == {}
 
 
 # ---------------------------------------------------------------------------

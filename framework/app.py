@@ -19,8 +19,10 @@ from database import (
     generate_week_slots,
     get_article_by_id,
     get_carousel_data,
+    get_carousel_data_for_generations,
     get_feed_stats,
     get_feeds,
+    get_feeds_with_article_counts,
     get_generation_history,
     get_insights,
     get_recent_articles,
@@ -391,10 +393,11 @@ def history():
     try:
         limit = min(int(request.args.get("limit", 30)), 100)
         rows = get_generation_history(limit=limit)
-        # Enrich with carousel data
+        draft_ids = [d["id"] for item in rows for d in item.get("drafts", [])]
+        carousel_map = get_carousel_data_for_generations(draft_ids)
         for item in rows:
             for draft in item.get("drafts", []):
-                cd = get_carousel_data(draft["id"])
+                cd = carousel_map.get(draft["id"])
                 if cd:
                     draft["carousel"] = {
                         "template_type": cd["template_type"],
@@ -574,18 +577,9 @@ def calendar_skip():
 @app.route("/api/feeds")
 def feeds_list():
     try:
-        feeds = get_feeds(enabled_only=False)
-        from database import get_connection
-        conn = get_connection()
-        try:
-            for feed in feeds:
-                count = conn.execute(
-                    "SELECT COUNT(*) FROM feed_articles WHERE feed_id = ?", (feed["id"],)
-                ).fetchone()[0]
-                feed["article_count"] = count
-                feed["enabled"] = bool(feed["enabled"])
-        finally:
-            conn.close()
+        feeds = get_feeds_with_article_counts(enabled_only=False)
+        for feed in feeds:
+            feed["enabled"] = bool(feed["enabled"])
         stats = get_feed_stats()
         return jsonify({"success": True, "feeds": feeds, "stats": stats})
     except Exception as e:
