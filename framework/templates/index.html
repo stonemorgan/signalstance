@@ -1305,7 +1305,8 @@
             let calendarWeekStart = null; // ISO date string of current week's Monday
             let feedLoaded = false;
 
-            function switchToTab(tabName) {
+            function renderTab(tabName, params) {
+                params = params || {};
                 tabBtns.forEach(b => {
                     b.classList.remove('active');
                     if (b.dataset.tab === tabName) b.classList.add('active');
@@ -1317,8 +1318,9 @@
                 if (tabName === 'create') {
                     tabCreate.classList.remove('hidden');
                 } else if (tabName === 'calendar') {
+                    if (forSlotId) clearSlotContext();
                     tabCalendar.classList.remove('hidden');
-                    fetchCalendar(calendarWeekStart || 'current');
+                    fetchCalendar(params.weekStart || calendarWeekStart || 'current');
                     calendarLoaded = true;
                 } else if (tabName === 'feed') {
                     tabFeed.classList.remove('hidden');
@@ -1329,13 +1331,48 @@
                 }
             }
 
+            // ---- Hash Routing ----
+            // #/create | #/calendar | #/calendar/YYYY-MM-DD | #/feed
+            const VALID_TABS = ['create', 'calendar', 'feed'];
+
+            function parseRoute() {
+                const raw = location.hash.replace(/^#\/?/, '');
+                const parts = raw ? raw.split('/') : [];
+                const tab = VALID_TABS.includes(parts[0]) ? parts[0] : 'create';
+                if (tab === 'calendar' && parts[1] && /^\d{4}-\d{2}-\d{2}$/.test(parts[1])) {
+                    return { tab, weekStart: parts[1] };
+                }
+                return { tab };
+            }
+
+            function buildHash(tab, params) {
+                let h = '#/' + tab;
+                if (tab === 'calendar' && params && params.weekStart) {
+                    h += '/' + params.weekStart;
+                }
+                return h;
+            }
+
+            function pushRoute(tab, params) {
+                const h = buildHash(tab, params);
+                if (location.hash !== h) history.pushState(null, '', h);
+            }
+
+            function applyRoute() {
+                const r = parseRoute();
+                renderTab(r.tab, r);
+            }
+
+            function switchToTab(tabName, params) {
+                pushRoute(tabName, params);
+                renderTab(tabName, params);
+            }
+
+            window.addEventListener('popstate', applyRoute);
+
             tabBtns.forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const tab = btn.dataset.tab;
-                    if (tab === 'calendar' && forSlotId) {
-                        clearSlotContext();
-                    }
-                    switchToTab(tab);
+                    switchToTab(btn.dataset.tab);
                 });
             });
 
@@ -1351,14 +1388,18 @@
                 if (!calendarWeekStart) return;
                 const d = new Date(calendarWeekStart + 'T00:00:00');
                 d.setDate(d.getDate() - 7);
-                fetchCalendar(d.toISOString().slice(0, 10));
+                const next = d.toISOString().slice(0, 10);
+                pushRoute('calendar', { weekStart: next });
+                fetchCalendar(next);
             });
 
             calNext.addEventListener('click', () => {
                 if (!calendarWeekStart) return;
                 const d = new Date(calendarWeekStart + 'T00:00:00');
                 d.setDate(d.getDate() + 7);
-                fetchCalendar(d.toISOString().slice(0, 10));
+                const next = d.toISOString().slice(0, 10);
+                pushRoute('calendar', { weekStart: next });
+                fetchCalendar(next);
             });
 
             function fetchCalendar(weekParam) {
@@ -2481,6 +2522,9 @@
 
             // Load business config and apply to UI
             loadConfig();
+
+            // Apply initial route from URL hash (defaults to create tab)
+            applyRoute();
         })();
     </script>
     {% endif %}
