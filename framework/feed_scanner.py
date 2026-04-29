@@ -8,6 +8,7 @@ import requests
 
 from business_config import OWNER, SCORING_HIGH, SCORING_LOW
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from engine import _SECURITY_GUARDRAIL, _xml_wrap
 from database import (
     get_feeds,
     get_recent_articles,
@@ -107,9 +108,13 @@ def score_articles(articles):
 
     article_list = ""
     for i, article in enumerate(articles):
-        article_list += f"\n[{i+1}] Title: {article['title']}\n"
-        article_list += f"    Source: {article.get('feed_name', 'Unknown')} ({article.get('feed_category', 'Unknown')})\n"
-        article_list += f"    Summary: {(article.get('summary') or '')[:300]}\n"
+        fields = (
+            f"Index: {i+1}\n"
+            f"Title: {article['title']}\n"
+            f"Source: {article.get('feed_name', 'Unknown')} ({article.get('feed_category', 'Unknown')})\n"
+            f"Summary: {(article.get('summary') or '')[:300]}"
+        )
+        article_list += "\n" + _xml_wrap("article", fields)
 
     system_prompt = (
         f"You are an editorial relevance scorer for {OWNER['name']}, "
@@ -122,6 +127,7 @@ def score_articles(articles):
         f"None (0.0-0.1): {SCORING_LOW}\n\n"
         f"Respond ONLY with valid JSON \u2014 no preamble, no markdown backticks, no commentary. Format:\n"
         f"[{{\"index\": <int>, \"score\": <float>, \"reason\": \"<1 sentence>\"}}]"
+        f"{_SECURITY_GUARDRAIL}"
     )
 
     try:
