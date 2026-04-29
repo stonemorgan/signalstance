@@ -16,26 +16,30 @@ SignalStance is a multi-tenant Flask application that uses Claude AI to generate
 ```
 signalstance/
 ├── framework/                  # Shared application code
-│   ├── app.py                 (998 lines — Flask routes, API endpoints)
-│   ├── engine.py              (522 lines — Claude AI content generation)
-│   ├── database.py            (605 lines — SQLite operations, state machine)
-│   ├── carousel_renderer.py   (492 lines — ReportLab PDF generation)
-│   ├── feed_scanner.py        (182 lines — RSS fetch + relevance scoring)
-│   ├── business_config.py     (62 lines — tenant config loader)
-│   ├── config.py              (31 lines — env vars + derived settings)
-│   ├── brand.py               (33 lines — colors, fonts, dimensions)
-│   ├── feeds.py               (14 lines — feed config loader)
-│   ├── schema.sql             (85 lines — 7 tables + indexes)
+│   ├── app.py                 (Flask routes, API endpoints)
+│   ├── engine.py              (Claude AI content generation)
+│   ├── database.py            (SQLite operations, migrations, state machine)
+│   ├── carousel_renderer.py   (ReportLab PDF generation)
+│   ├── feed_scanner.py        (RSS fetch + relevance scoring)
+│   ├── business_config.py     (tenant config loader + ConfigError validation)
+│   ├── config.py              (env vars + derived settings)
+│   ├── brand.py               (colors, fonts, dimensions)
+│   ├── feeds.py               (feed config loader)
+│   ├── schema.sql             (latest schema — 7 tables, indexes, FK rules)
+│   ├── migrations/            (numbered SQL migrations, PRAGMA user_version)
+│   │   └── 0001_add_cascade_delete.sql
 │   ├── requirements.txt
 │   ├── templates/
-│   │   └── index.html         (2537 lines — full SPA, vanilla JS)
+│   │   └── index.html         (full SPA, vanilla JS, apiFetch helper)
 │   ├── static/
-│   │   └── style.css          (1891 lines — dark mode, responsive)
-│   └── tests/
+│   │   └── style.css          (dark mode, responsive)
+│   └── tests/                 (116 tests, ~3-4s, no external deps)
 │       ├── conftest.py        (shared fixtures, in-memory SQLite)
 │       ├── test_app_security.py
 │       ├── test_database.py
-│       └── test_engine_parsing.py
+│       ├── test_engine_parsing.py
+│       ├── test_config_validation.py
+│       └── test_migrations.py
 ├── tenants/                    # Per-business directories
 │   ├── _template/             (blueprint for new tenants)
 │   └── dana-wang/             (example: Dana Wang CPRW)
@@ -123,6 +127,8 @@ Prefix indicates the operation:
 - Every connection opens with `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`
 - Use `sqlite3.Row` factory for dict-like access
 - Connection timeout: 30 seconds
+- Schema changes go through the migration system: update `schema.sql` (latest) AND add `migrations/NNNN_*.sql` (incremental upgrade for legacy DBs). `init_db()` runs `run_migrations()` on startup; `PRAGMA user_version` tracks state.
+- FK behavior: `generations.insight_id`, `feed_articles.feed_id`, `carousel_data.generation_id` use `ON DELETE CASCADE`; `calendar_slots.generation_id` uses `ON DELETE SET NULL` so slots survive draft deletion.
 
 ### Flask Routes
 - RESTful endpoints under `/api/*`
@@ -150,7 +156,7 @@ Legal transitions enforced in `database.py:_LEGAL_TRANSITIONS` dict.
 
 ### Frontend
 - Vanilla JavaScript — no frameworks, no build step
-- All API calls via `fetch()` with JSON request/response
+- All API calls go through `apiFetch(url, opts)` — wraps `fetch()` so HTTP errors and non-JSON responses throw with `body.error` as the message. Don't call `fetch()` directly for app endpoints; use `apiFetch()` so `data.success` branches collapse to `.then(data => ...)` plus a `.catch(err => ...)`.
 - Dark mode via CSS custom properties
 - UI config loaded dynamically from `/api/config` endpoint
 - Categories, templates, and schedule driven by tenant `business_config.json`
@@ -198,11 +204,14 @@ cd framework && python -m pytest tests/ -v
 ```
 
 ### Writing New Tests
-- Add fixtures to `tests/conftest.py` — the `db` fixture provides a clean in-memory database, `app_client` provides a Flask test client
+- Add fixtures to `tests/conftest.py` — the `db` fixture provides a clean in-memory database via `database.init_db()` (which runs schema.sql + migrations); `app_client` provides a Flask test client
 - Security tests go in `test_app_security.py`
 - Database tests go in `test_database.py`
 - Parsing/engine tests go in `test_engine_parsing.py`
+- Config validation tests go in `test_config_validation.py`
+- Migration tests go in `test_migrations.py`
 - New test files: `test_<module>.py` in `framework/tests/`
+- Current count: 116 tests, ~3-4 seconds
 
 ## Database Schema
 

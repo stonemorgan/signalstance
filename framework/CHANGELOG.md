@@ -4,6 +4,20 @@ All notable changes to Signal & Stance are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Schema migration system** — `PRAGMA user_version`-based runner in `database.py` applies numbered migrations from `framework/migrations/*.sql`. Fresh DBs are stamped at the latest version (no migration scripts run on empty new files); legacy DBs at `user_version=0` get pending migrations applied in order with progress tracked atomically. `_is_fresh_db()` distinguishes the two by checking for any user tables before `schema.sql` runs.
+- **Migration `0001_add_cascade_delete.sql`** — first real migration. Recreates four tables to add proper FK behavior: `generations.insight_id` and `feed_articles.feed_id` and `carousel_data.generation_id` get `ON DELETE CASCADE`; `calendar_slots.generation_id` gets `ON DELETE SET NULL` so slot history survives draft deletion. Closes the audit's deferred CASCADE-rules item which was blocked on having a migration system.
+- **Tenant config validation at startup** — new `ConfigError` exception in `business_config.py` plus a `_validate()` checker that runs on import. Catches malformed JSON (with line/column), missing required top-level keys, missing nested keys, wrong types, unknown weekday names in `schedule.days`, and missing entries in `schedule.suggested_times`. `feeds.json` parsing also wrapped. `run.py` catches `ConfigError` and exits 1 with a one-line message instead of a stack trace.
+- **`apiFetch()` helper in the SPA** — wraps `fetch()` so HTTP errors and non-JSON responses surface as thrown `Error` objects with the backend's `{success, error}` envelope message. Replaces 33 inline `fetch().then(r => r.json()).then(...)` chains. Empty `.catch(() => {})` blocks now `console.error()`; user-initiated calendar mutations `alert()` with the error message; feed-add surfaces it inline.
+- **`SIGNALSTANCE_OVERVIEW.md`** — codebase guide and user manual at the project root covering architecture, feature tour, data flow diagrams, tenant resolution, schema, and effectiveness tips.
+- **`framework/tests/test_config_validation.py`** — 11 tests covering missing file, malformed JSON, missing/wrong-typed keys, unknown weekdays, missing day subkeys, missing suggested-time entries, empty `schedule.days`, non-object root.
+- **`framework/tests/test_migrations.py`** — 8 tests covering fresh-DB stamping, legacy-DB upgrade with data preservation, idempotent re-run, CASCADE delete on generations / feed_articles / carousel_data, SET NULL on calendar_slots, and discovery sort order.
+
+### Changed
+- **`framework/schema.sql`** now reflects the latest schema. New DBs get `ON DELETE CASCADE` / `SET NULL` on FK references directly without going through migrations.
+- **`framework/tests/conftest.py`** — `db` fixture now calls `database.init_db()` (which runs schema.sql + migrations) instead of executing `schema.sql` directly, so tests use the production code path.
+- **Test count** — full suite is now 116 tests (was 97), still ~3-4 seconds, no external dependencies.
+
 ## [1.15.0] - 2026-03-16
 
 ### Added

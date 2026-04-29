@@ -56,10 +56,11 @@ signalstance/
 │   ├── config.py             # Env vars + derived schedule
 │   ├── brand.py              # Typography/colors/dimensions for carousels
 │   ├── feeds.py              # Feed list loader
-│   ├── schema.sql            # 7 tables, indexes, uniqueness constraints
-│   ├── templates/index.html  # 2,537-line single-page app
-│   ├── static/style.css      # 1,891-line stylesheet with dark mode
-│   └── tests/                # pytest suite (conftest + 3 test files)
+│   ├── schema.sql            # Latest schema: 7 tables, FK CASCADE/SET NULL, indexes
+│   ├── migrations/           # Numbered SQL migrations (PRAGMA user_version)
+│   ├── templates/index.html  # Single-page app (apiFetch wraps all fetch calls)
+│   ├── static/style.css      # Stylesheet with dark mode
+│   └── tests/                # pytest suite (116 tests, conftest + 5 test files)
 │
 ├── tenants/
 │   ├── _template/            # Blueprint for new tenants
@@ -143,6 +144,8 @@ Every generation is persisted. The UI exposes an **Insight Bank** (raw observati
 - `FLASK_DEBUG` defaults off (prevents Werkzeug RCE).
 - `/api/config` explicitly excludes the API key.
 - Connection `try/finally` on all ~24 DB functions; 30-second busy timeout; WAL mode; FK enforcement.
+- Tenant config validated on startup — `ConfigError` with file path + missing key instead of cryptic `KeyError` tracebacks.
+- Frontend HTTP errors flow through `apiFetch()` → `.catch(err => ...)` consistently; no silent failures on 4xx/5xx.
 
 ### 4.7 Audit suite (Claude Code only)
 
@@ -156,7 +159,7 @@ Nine specialized agents in `.claude/agents/` — run the full 4-phase audit via 
          ┌──────────────────┐
          │  index.html SPA  │  (Create | Calendar | Feed tabs)
          └────────┬─────────┘
-                  │  fetch() JSON
+                  │  apiFetch() JSON
                   ▼
     ┌──────────────────────────────┐
     │        Flask (app.py)        │
@@ -205,12 +208,14 @@ Prompt `.md` files use `{{key.subkey}}` placeholders. `engine._flatten_config()`
 | Table | Purpose |
 |---|---|
 | `insights` | Raw observations (category, text, optional source URL, used flag) |
-| `generations` | AI-generated draft posts (FK → insights, draft_number, content, copied) |
-| `calendar_slots` | Mon–Fri weekly slots with status state machine (UNIQUE `slot_date`) |
+| `generations` | AI-generated draft posts (FK → insights, **CASCADE** on delete) |
+| `calendar_slots` | Mon–Fri weekly slots with status state machine (FK → generations, **SET NULL** on delete; UNIQUE `slot_date`) |
 | `feeds` | RSS feed sources (URL, category, weight, enabled, last error) |
-| `feed_articles` | Fetched articles (FK → feeds, relevance_score, used, dismissed) |
-| `carousel_data` | PDF metadata (FK → generations, JSON parsed_content, filename, slide_count) |
+| `feed_articles` | Fetched articles (FK → feeds, **CASCADE** on delete; relevance_score, used, dismissed) |
+| `carousel_data` | PDF metadata (FK → generations, **CASCADE** on delete; JSON parsed_content, filename, slide_count) |
 | `config` | Key-value app settings |
+
+Schema state is tracked via `PRAGMA user_version`; `framework/migrations/NNNN_*.sql` files apply incremental upgrades for legacy DBs while fresh DBs get the latest `schema.sql` directly. `init_db()` runs the migration runner on startup.
 
 ---
 
@@ -253,7 +258,7 @@ python run.py --list
 
 ```bash
 cd framework && python -m pytest tests/ -v
-# 97 tests, ~3s, no network or API key required
+# 116 tests, ~3-4s, no network or API key required
 ```
 
 ### Environment variables

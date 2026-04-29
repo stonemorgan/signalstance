@@ -64,15 +64,19 @@ signalstance/
 │   ├── config.py                 # App settings
 │   ├── brand.py                  # Visual identity for carousels
 │   ├── feeds.py                  # Feed list loader
-│   ├── schema.sql                # Database DDL + indexes
+│   ├── schema.sql                # Database DDL + indexes (latest schema)
+│   ├── migrations/               # Numbered SQL migrations (PRAGMA user_version)
+│   │   └── 0001_add_cascade_delete.sql
 │   ├── requirements.txt          # Python dependencies
-│   ├── templates/index.html      # Frontend SPA
+│   ├── templates/index.html      # Frontend SPA (apiFetch wraps all fetch calls)
 │   ├── static/style.css          # Styling
-│   └── tests/                    # Pytest suite (97 tests, no API keys needed)
+│   └── tests/                    # Pytest suite (116 tests, no API keys needed)
 │       ├── conftest.py           # Shared fixtures (in-memory DB, patched config)
 │       ├── test_database.py      # Database CRUD, state machine, FK enforcement
 │       ├── test_engine_parsing.py # Draft/carousel parsing, field extraction
-│       └── test_app_security.py  # SSRF, path traversal, debug mode, error format
+│       ├── test_app_security.py  # SSRF, path traversal, debug mode, error format
+│       ├── test_config_validation.py # business_config.json schema validation
+│       └── test_migrations.py    # Fresh/legacy DB upgrade paths, CASCADE behavior
 │
 ├── tenants/
 │   ├── dana-wang/                # Dana Wang / Raleigh Resume tenant
@@ -285,13 +289,30 @@ cd framework
 python -m pytest tests/ -v
 ```
 
-**97 tests** across 3 modules, executing in ~3 seconds:
+**116 tests** across 5 modules, executing in ~3 seconds:
 
-- **`test_database.py`** (39 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency.
+- **`test_database.py`** (40 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency.
 - **`test_engine_parsing.py`** (29 tests) — `parse_drafts()` with well-formed/malformed/edge-case inputs, carousel content parsing for all 3 templates (tips, before/after, myth/reality), `_extract_field()` helper.
-- **`test_app_security.py`** (29 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization.
+- **`test_app_security.py`** (28 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization.
+- **`test_config_validation.py`** (11 tests) — `ConfigError` raised on malformed JSON, missing required keys, wrong types, unknown weekdays, missing day subkeys, missing suggested-time entries.
+- **`test_migrations.py`** (8 tests) — fresh DB stamps latest `user_version`, legacy DB at `user_version=0` upgrades with data preserved, idempotent re-run, CASCADE delete on generations/feed_articles/carousel_data, SET NULL on calendar_slots.
 
 All tests use an in-memory SQLite database and mocked configuration. No Anthropic API calls are made.
+
+## Schema Migrations
+
+The database uses `PRAGMA user_version` to track schema state. `framework/schema.sql` always holds the **latest** schema; `framework/migrations/NNNN_*.sql` files contain incremental upgrades for existing databases.
+
+- **Fresh DBs** (no tables yet) get the latest `schema.sql` directly and have `user_version` stamped to the highest migration number — no migration scripts execute on empty new files.
+- **Legacy DBs** at `user_version=0` have every numbered migration applied in order. Each migration runs in its own transaction; `user_version` is bumped on success.
+
+**Adding a new schema change:**
+
+1. Update `framework/schema.sql` with the new schema (so fresh DBs get it).
+2. Add `framework/migrations/NNNN_<short_description>.sql` where `NNNN` is one greater than the highest existing migration. Include any required `PRAGMA foreign_keys=OFF` / `BEGIN` / `COMMIT` if the change requires table recreation (SQLite cannot `ALTER TABLE` to change FK definitions).
+3. Add a test in `framework/tests/test_migrations.py`.
+
+`init_db()` runs migrations automatically at app startup.
 
 ## Customization
 
