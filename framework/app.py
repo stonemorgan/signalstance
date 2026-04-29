@@ -1,3 +1,4 @@
+import functools
 import ipaddress
 import os
 import re
@@ -54,6 +55,37 @@ app = Flask(__name__)
 
 VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake", "autopilot", "url_react", "feed_react"}
 API_KEY_MISSING = not ANTHROPIC_API_KEY
+
+
+def require_api_key(view):
+    """Short-circuit a route with a 503 if ANTHROPIC_API_KEY is not configured."""
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        if API_KEY_MISSING:
+            return jsonify({
+                "success": False,
+                "error": "API key not configured. See setup instructions.",
+            }), 503
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _save_drafts(insight_id, drafts):
+    """Persist drafts under an insight and return the frontend-shaped response list.
+
+    Replaces the per-route enumerate/save_generation/dict-build loop. Tolerates
+    missing 'angle' keys (returns "" instead of KeyError).
+    """
+    response = []
+    for i, draft in enumerate(drafts, start=1):
+        gen_id = save_generation(insight_id, i, draft["content"])
+        response.append({
+            "id": gen_id,
+            "draft_number": i,
+            "content": draft["content"],
+            "angle": draft.get("angle", ""),
+        })
+    return response
 
 _PRIVATE_NETWORKS = [
     ipaddress.ip_network("127.0.0.0/8"),
@@ -122,10 +154,8 @@ def get_config():
 
 
 @app.route("/api/generate", methods=["POST"])
+@require_api_key
 def generate():
-    if API_KEY_MISSING:
-        return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
-
     try:
         data = request.get_json(silent=True)
         if not data:
@@ -145,22 +175,9 @@ def generate():
 
         source_url = data.get("source_url")
 
-        # Generate drafts via the Anthropic API
         drafts = generate_posts(category, raw_input_text, source_url)
-
-        # Save insight
         insight_id = save_insight(category, raw_input_text, source_url)
-
-        # Save drafts and build response
-        drafts_response = []
-        for i, draft in enumerate(drafts, start=1):
-            gen_id = save_generation(insight_id, i, draft["content"])
-            drafts_response.append({
-                "id": gen_id,
-                "draft_number": i,
-                "content": draft["content"],
-                "angle": draft["angle"],
-            })
+        drafts_response = _save_drafts(insight_id, drafts)
 
         response = {"success": True, "insight_id": insight_id, "drafts": drafts_response}
 
@@ -190,10 +207,8 @@ def generate():
 
 
 @app.route("/api/generate/autopilot", methods=["POST"])
+@require_api_key
 def generate_autopilot_route():
-    if API_KEY_MISSING:
-        return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
-
     try:
         result = generate_autopilot_from_feeds()
         method = result["method"]
@@ -212,16 +227,6 @@ def generate_autopilot_route():
             source_url = source_article.get("url")
             insight_id = save_insight("autopilot", raw_input_text, source_url)
 
-            drafts_response = []
-            for i, draft in enumerate(drafts, start=1):
-                gen_id = save_generation(insight_id, i, draft["content"])
-                drafts_response.append({
-                    "id": gen_id,
-                    "draft_number": i,
-                    "content": draft["content"],
-                    "angle": draft.get("angle", ""),
-                })
-
             return jsonify({
                 "success": True,
                 "insight_id": insight_id,
@@ -229,7 +234,7 @@ def generate_autopilot_route():
                 "source_article": source_article,
                 "source_summary": source_article.get("title", ""),
                 "source_url": source_url,
-                "drafts": drafts_response,
+                "drafts": _save_drafts(insight_id, drafts),
             })
 
         # ── Web search fallback ──
@@ -259,16 +264,6 @@ def generate_autopilot_route():
         source_url = (source_info or {}).get("source_url")
         insight_id = save_insight("autopilot", raw_input_text, source_url)
 
-        drafts_response = []
-        for i, draft in enumerate(drafts, start=1):
-            gen_id = save_generation(insight_id, i, draft["content"])
-            drafts_response.append({
-                "id": gen_id,
-                "draft_number": i,
-                "content": draft["content"],
-                "angle": draft.get("angle", ""),
-            })
-
         return jsonify({
             "success": True,
             "insight_id": insight_id,
@@ -276,7 +271,7 @@ def generate_autopilot_route():
             "source_article": None,
             "source_summary": (source_info or {}).get("source_summary", ""),
             "source_url": source_url,
-            "drafts": drafts_response,
+            "drafts": _save_drafts(insight_id, drafts),
         })
 
     except Exception as e:
@@ -284,10 +279,8 @@ def generate_autopilot_route():
 
 
 @app.route("/api/generate/react", methods=["POST"])
+@require_api_key
 def generate_react_route():
-    if API_KEY_MISSING:
-        return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
-
     try:
         data = request.get_json(silent=True) or {}
 
@@ -308,27 +301,15 @@ def generate_react_route():
                 error_msg = "Couldn't read that URL. It may be behind a paywall or unavailable. Try pasting the article text into the observation field instead."
             return jsonify({"success": False, "error": error_msg}), 400
 
-        # Save insight
         raw_input_text = source_info.get("source_summary", url)
         insight_id = save_insight("url_react", raw_input_text, url)
-
-        # Save drafts and build response
-        drafts_response = []
-        for i, draft in enumerate(drafts, start=1):
-            gen_id = save_generation(insight_id, i, draft["content"])
-            drafts_response.append({
-                "id": gen_id,
-                "draft_number": i,
-                "content": draft["content"],
-                "angle": draft["angle"],
-            })
 
         return jsonify({
             "success": True,
             "insight_id": insight_id,
             "source_summary": source_info.get("source_summary", ""),
             "source_url": url,
-            "drafts": drafts_response,
+            "drafts": _save_drafts(insight_id, drafts),
         })
 
     except Exception as e:
@@ -666,10 +647,8 @@ def articles_list():
 
 
 @app.route("/api/articles/<int:article_id>/generate", methods=["POST"])
+@require_api_key
 def articles_generate(article_id):
-    if API_KEY_MISSING:
-        return jsonify({"success": False, "error": "API key not configured. See setup instructions."}), 503
-
     try:
         article = get_article_by_id(article_id)
         if not article:
@@ -679,20 +658,8 @@ def articles_generate(article_id):
         if not drafts:
             return jsonify({"success": False, "error": "Draft generation failed."}), 500
 
-        # Save insight and generations
         insight_id = save_insight("feed_react", article["title"], article["url"])
-
-        drafts_response = []
-        for i, draft in enumerate(drafts, start=1):
-            gen_id = save_generation(insight_id, i, draft["content"])
-            drafts_response.append({
-                "id": gen_id,
-                "draft_number": i,
-                "content": draft["content"],
-                "angle": draft.get("angle", ""),
-            })
-
-        # Mark the article as used
+        drafts_response = _save_drafts(insight_id, drafts)
         mark_article_used(article_id)
 
         return jsonify({
@@ -731,10 +698,8 @@ VALID_TEMPLATES = {"tips", "beforeafter", "mythreality"}
 
 
 @app.route("/api/generate/carousel", methods=["POST"])
+@require_api_key
 def generate_carousel_route():
-    if API_KEY_MISSING:
-        return jsonify({"success": False, "error": "API key not configured."}), 503
-
     try:
         data = request.get_json(silent=True)
         if not data:
@@ -811,10 +776,8 @@ def download_carousel(generation_id):
 
 
 @app.route("/api/generate/carousel/regenerate", methods=["POST"])
+@require_api_key
 def regenerate_carousel_route():
-    if API_KEY_MISSING:
-        return jsonify({"success": False, "error": "API key not configured."}), 503
-
     try:
         data = request.get_json(silent=True)
         if not data:

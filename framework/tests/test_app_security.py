@@ -356,3 +356,81 @@ class TestServerError:
         data = resp.get_json()
         assert data["success"] is False
         assert "slot not found" in data["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# _save_drafts helper — replaces 5 duplicated draft-saving loops
+# ---------------------------------------------------------------------------
+
+class TestSaveDrafts:
+    def test_persists_and_returns_response_shape(self, db):
+        import app
+        import database
+
+        iid = database.save_insight("pattern", "test insight")
+        drafts = [
+            {"content": "first draft", "angle": "the angle"},
+            {"content": "second draft", "angle": ""},
+            {"content": "third draft"},  # no 'angle' key at all
+        ]
+        response = app._save_drafts(iid, drafts)
+
+        assert len(response) == 3
+        assert [r["draft_number"] for r in response] == [1, 2, 3]
+        assert response[0]["content"] == "first draft"
+        assert response[0]["angle"] == "the angle"
+        assert response[1]["angle"] == ""
+        assert response[2]["angle"] == ""  # missing key → "" (not KeyError)
+        assert all(isinstance(r["id"], int) for r in response)
+
+        # Verify rows actually landed in the DB
+        gens = database.get_generations_for_insight(iid)
+        assert len(gens) == 3
+
+    def test_empty_drafts_returns_empty_list(self, db):
+        import app
+        import database
+
+        iid = database.save_insight("pattern", "no drafts")
+        assert app._save_drafts(iid, []) == []
+
+
+# ---------------------------------------------------------------------------
+# require_api_key decorator — short-circuits routes when key is missing
+# ---------------------------------------------------------------------------
+
+class TestRequireApiKey:
+    def test_returns_503_when_key_missing(self, app_client, monkeypatch):
+        import app as app_module
+        monkeypatch.setattr(app_module, "API_KEY_MISSING", True)
+
+        resp = app_client.post("/api/generate", json={
+            "category": "pattern",
+            "raw_input": "test",
+        })
+        assert resp.status_code == 503
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "api key" in data["error"].lower()
+
+    def test_carousel_route_also_protected(self, app_client, monkeypatch):
+        """Regression check that the decorator is wired up on the carousel routes
+        (they previously had a slightly different inline message)."""
+        import app as app_module
+        monkeypatch.setattr(app_module, "API_KEY_MISSING", True)
+
+        resp = app_client.post("/api/generate/carousel", json={
+            "category": "pattern",
+            "raw_input": "test",
+            "template_type": "tips",
+        })
+        assert resp.status_code == 503
+
+    def test_passes_through_when_key_present(self, app_client):
+        """With API_KEY_MISSING=False (the conftest default), the decorator must
+        not short-circuit — the route's own validation should run."""
+        # Sending an empty body triggers the route's 'must be JSON' branch, which
+        # is reached only if the decorator lets the request through.
+        resp = app_client.post("/api/generate", json={})
+        # If the decorator wrongly fired, we'd get 503; instead we expect 400.
+        assert resp.status_code == 400
