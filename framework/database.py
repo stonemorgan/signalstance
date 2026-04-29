@@ -14,12 +14,75 @@ def get_connection():
     return conn
 
 
+_MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "migrations")
+
+
+def _is_fresh_db(conn):
+    """A fresh DB has no user tables yet — distinguishes a brand-new file
+    from a legacy DB that pre-dates the migration system (user_version=0)."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM sqlite_master "
+        "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchone()
+    return row[0] == 0
+
+
+def _discover_migrations():
+    """Return [(version, filepath), ...] sorted by version."""
+    if not os.path.isdir(_MIGRATIONS_DIR):
+        return []
+    out = []
+    for name in os.listdir(_MIGRATIONS_DIR):
+        if not name.endswith(".sql"):
+            continue
+        try:
+            version = int(name.split("_", 1)[0])
+        except (ValueError, IndexError):
+            continue
+        out.append((version, os.path.join(_MIGRATIONS_DIR, name)))
+    out.sort()
+    return out
+
+
+def run_migrations(conn, is_fresh=False):
+    """Apply pending migrations, tracking progress via PRAGMA user_version.
+
+    On a fresh DB (just created from schema.sql, which always reflects the
+    latest schema) we skip past all migrations and stamp user_version at
+    the latest version. On a legacy DB at user_version=0 with pre-existing
+    tables, every migration runs in order.
+    """
+    migrations = _discover_migrations()
+    latest = migrations[-1][0] if migrations else 0
+    current = conn.execute("PRAGMA user_version").fetchone()[0]
+
+    if is_fresh and current == 0:
+        conn.execute(f"PRAGMA user_version = {latest}")
+        conn.commit()
+        return latest
+
+    for version, path in migrations:
+        if version <= current:
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            sql = f.read()
+        conn.commit()
+        conn.executescript(sql)
+        conn.execute(f"PRAGMA user_version = {version}")
+        conn.commit()
+        current = version
+    return current
+
+
 def init_db():
     schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
     conn = get_connection()
     try:
+        is_fresh = _is_fresh_db(conn)
         with open(schema_path, "r") as f:
             conn.executescript(f.read())
+        conn.commit()
+        run_migrations(conn, is_fresh=is_fresh)
     finally:
         conn.close()
 

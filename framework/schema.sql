@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS generations (
     content TEXT NOT NULL,
     copied INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (insight_id) REFERENCES insights(id)
+    FOREIGN KEY (insight_id) REFERENCES insights(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS config (
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS calendar_slots (
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (generation_id) REFERENCES generations(id)
+    FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS feeds (
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS feed_articles (
     relevance_reason TEXT,
     used INTEGER DEFAULT 0,
     dismissed INTEGER DEFAULT 0,
-    FOREIGN KEY (feed_id) REFERENCES feeds(id)
+    FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS carousel_data (
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS carousel_data (
     pdf_filename TEXT,
     slide_count INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (generation_id) REFERENCES generations(id)
+    FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
 );
 
 -- Performance indexes

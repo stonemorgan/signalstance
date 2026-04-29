@@ -60,10 +60,8 @@ def db(monkeypatch):
     # connections close.
     keeper = sqlite3.connect(shared_uri, uri=True, timeout=30)
 
-    # Initialize schema
-    schema_path = os.path.join(_framework_dir, "schema.sql")
-    with open(schema_path, "r") as f:
-        keeper.executescript(f.read())
+    # Initialize schema and run migrations through the production code path.
+    database.init_db()
 
     yield _get_shared_connection
 
