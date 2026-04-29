@@ -58,9 +58,9 @@ signalstance/
 │   ├── feeds.py              # Feed list loader
 │   ├── schema.sql            # Latest schema: 7 tables, FK CASCADE/SET NULL, indexes
 │   ├── migrations/           # Numbered SQL migrations (PRAGMA user_version)
-│   ├── templates/index.html  # Single-page app (apiFetch wraps all fetch calls)
+│   ├── templates/index.html  # Single-page app (apiFetch + hash routing for back-button)
 │   ├── static/style.css      # Stylesheet with dark mode
-│   └── tests/                # pytest suite (116 tests, conftest + 5 test files)
+│   └── tests/                # pytest suite (122 tests, conftest + 5 test files)
 │
 ├── tenants/
 │   ├── _template/            # Blueprint for new tenants
@@ -146,6 +146,8 @@ Every generation is persisted. The UI exposes an **Insight Bank** (raw observati
 - Connection `try/finally` on all ~24 DB functions; 30-second busy timeout; WAL mode; FK enforcement.
 - Tenant config validated on startup — `ConfigError` with file path + missing key instead of cryptic `KeyError` tracebacks.
 - Frontend HTTP errors flow through `apiFetch()` → `.catch(err => ...)` consistently; no silent failures on 4xx/5xx.
+- SPA tab + calendar week persisted in `location.hash` (`#/create | #/calendar | #/calendar/YYYY-MM-DD | #/feed`); browser back/forward navigates between views.
+- `/api/history` and `/api/feeds` routes use batch queries (`IN`-clause + `LEFT JOIN GROUP BY`) — eliminates the prior 1+N patterns (history was up to 121 queries → now 3; feeds was 1+N → 1).
 
 ### 4.7 Audit suite (Claude Code only)
 
@@ -258,7 +260,7 @@ python run.py --list
 
 ```bash
 cd framework && python -m pytest tests/ -v
-# 116 tests, ~3-4s, no network or API key required
+# 122 tests, ~3-4s, no network or API key required
 ```
 
 ### Environment variables

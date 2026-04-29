@@ -33,7 +33,7 @@ signalstance/
 │   │   └── index.html         (full SPA, vanilla JS, apiFetch helper)
 │   ├── static/
 │   │   └── style.css          (dark mode, responsive)
-│   └── tests/                 (116 tests, ~3-4s, no external deps)
+│   └── tests/                 (122 tests, ~3-4s, no external deps)
 │       ├── conftest.py        (shared fixtures, in-memory SQLite)
 │       ├── test_app_security.py
 │       ├── test_database.py
@@ -157,6 +157,7 @@ Legal transitions enforced in `database.py:_LEGAL_TRANSITIONS` dict.
 ### Frontend
 - Vanilla JavaScript — no frameworks, no build step
 - All API calls go through `apiFetch(url, opts)` — wraps `fetch()` so HTTP errors and non-JSON responses throw with `body.error` as the message. Don't call `fetch()` directly for app endpoints; use `apiFetch()` so `data.success` branches collapse to `.then(data => ...)` plus a `.catch(err => ...)`.
+- Hash-based SPA routing (`#/create | #/calendar | #/calendar/YYYY-MM-DD | #/feed`). Tab clicks and calendar prev/next push history entries via `pushState`; `popstate` calls `applyRoute()` to re-render. New programmatic tab switches must call `switchToTab(name)`, not `renderTab()` directly, so URL stays in sync.
 - Dark mode via CSS custom properties
 - UI config loaded dynamically from `/api/config` endpoint
 - Categories, templates, and schedule driven by tenant `business_config.json`
@@ -211,7 +212,7 @@ cd framework && python -m pytest tests/ -v
 - Config validation tests go in `test_config_validation.py`
 - Migration tests go in `test_migrations.py`
 - New test files: `test_<module>.py` in `framework/tests/`
-- Current count: 116 tests, ~3-4 seconds
+- Current count: 122 tests, ~3-4 seconds
 
 ## Database Schema
 

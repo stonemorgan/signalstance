@@ -68,9 +68,9 @@ signalstance/
 │   ├── migrations/               # Numbered SQL migrations (PRAGMA user_version)
 │   │   └── 0001_add_cascade_delete.sql
 │   ├── requirements.txt          # Python dependencies
-│   ├── templates/index.html      # Frontend SPA (apiFetch wraps all fetch calls)
+│   ├── templates/index.html      # Frontend SPA (apiFetch wraps all fetch calls; hash routing for back-button)
 │   ├── static/style.css          # Styling
-│   └── tests/                    # Pytest suite (116 tests, no API keys needed)
+│   └── tests/                    # Pytest suite (122 tests, no API keys needed)
 │       ├── conftest.py           # Shared fixtures (in-memory DB, patched config)
 │       ├── test_database.py      # Database CRUD, state machine, FK enforcement
 │       ├── test_engine_parsing.py # Draft/carousel parsing, field extraction
@@ -289,9 +289,9 @@ cd framework
 python -m pytest tests/ -v
 ```
 
-**116 tests** across 5 modules, executing in ~3 seconds:
+**122 tests** across 5 modules, executing in ~3 seconds:
 
-- **`test_database.py`** (40 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency.
+- **`test_database.py`** (46 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency, batch helpers (`get_carousel_data_for_generations`, `get_feeds_with_article_counts`), multi-insight history grouping.
 - **`test_engine_parsing.py`** (29 tests) — `parse_drafts()` with well-formed/malformed/edge-case inputs, carousel content parsing for all 3 templates (tips, before/after, myth/reality), `_extract_field()` helper.
 - **`test_app_security.py`** (28 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization.
 - **`test_config_validation.py`** (11 tests) — `ConfigError` raised on malformed JSON, missing required keys, wrong types, unknown weekdays, missing day subkeys, missing suggested-time entries.
