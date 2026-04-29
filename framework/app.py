@@ -1,26 +1,39 @@
 import functools
+import hmac
 import ipaddress
 import os
 import re
+import secrets
 import socket
 import threading
 import time
 from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+)
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from business_config import APP_NAME, BUSINESS, TENANT_DIR
 from config import (
     ANTHROPIC_API_KEY,
+    AUTH_ENABLED,
+    AUTH_TOKEN,
     CONTENT_SCHEDULE,
     FLASK_PORT,
     RATE_LIMIT_DEFAULT,
     RATE_LIMIT_ENABLED,
     RATE_LIMIT_FEED_REFRESH,
     RATE_LIMIT_GENERATIONS,
+    SECRET_KEY,
     SUGGESTED_TIMES,
 )
 from database import (
@@ -64,9 +77,22 @@ from feed_scanner import fetch_feed, refresh_and_score
 
 app = Flask(__name__)
 app.config["RATELIMIT_ENABLED"] = RATE_LIMIT_ENABLED
+app.config["SECRET_KEY"] = SECRET_KEY
+app.config["AUTH_ENABLED"] = AUTH_ENABLED
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 VALID_CATEGORIES = {"pattern", "faq", "noticed", "hottake", "autopilot", "url_react", "feed_react"}
 API_KEY_MISSING = not ANTHROPIC_API_KEY
+
+# Paths that bypass auth (login UI, login endpoint, status probe, static).
+_AUTH_EXEMPT_PATHS = {"/login", "/api/auth/login", "/api/auth/status"}
+# State-changing methods require a CSRF token to match the cookie.
+_CSRF_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# Login endpoint cannot have CSRF (no cookie exists yet); the secret token
+# itself is the protection.
+_CSRF_EXEMPT_PATHS = {"/api/auth/login"}
+_CSRF_COOKIE_NAME = "csrf_token"
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -90,6 +116,95 @@ def _ratelimit_handler(e):
     if current is not None and getattr(current, "reset_at", None):
         response.headers["Retry-After"] = str(max(0, int(current.reset_at - time.time())))
     return response
+
+
+def _is_authed():
+    return bool(session.get("authed"))
+
+
+@app.before_request
+def _auth_and_csrf_gate():
+    """Enforce auth + CSRF before any route handler runs.
+
+    - Auth: unauthed requests to /api/* return 401 JSON; unauthed requests to
+      / redirect to /login. The login UI, login endpoint, status probe, and
+      static assets are exempt.
+    - CSRF: state-changing requests must carry an `X-CSRF-Token` header that
+      matches the `csrf_token` cookie set at login time. The login endpoint
+      itself is exempt — the secret token IS the auth and there is no cookie
+      to compare against yet.
+    """
+    if not app.config.get("AUTH_ENABLED", True):
+        return None
+
+    path = request.path or ""
+    if path in _AUTH_EXEMPT_PATHS or path.startswith("/static/"):
+        return None
+
+    if not _is_authed():
+        if path.startswith("/api/"):
+            return jsonify({"success": False, "error": "Authentication required."}), 401
+        return redirect("/login")
+
+    if request.method in _CSRF_METHODS and path not in _CSRF_EXEMPT_PATHS:
+        header_token = request.headers.get("X-CSRF-Token", "")
+        cookie_token = request.cookies.get(_CSRF_COOKIE_NAME, "")
+        if not header_token or not cookie_token or not hmac.compare_digest(header_token, cookie_token):
+            return jsonify({"success": False, "error": "CSRF token missing or invalid."}), 403
+
+    return None
+
+
+@app.route("/login")
+def login_page():
+    if _is_authed():
+        return redirect("/")
+    return render_template("login.html", app_name=APP_NAME)
+
+
+@app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("5 per minute")
+def auth_login():
+    """Validate the shared-secret token, set session, issue a CSRF cookie."""
+    data = request.get_json(silent=True) or {}
+    submitted = data.get("token", "")
+    if not isinstance(submitted, str) or not submitted:
+        return jsonify({"success": False, "error": "Token is required."}), 400
+    if not hmac.compare_digest(submitted, AUTH_TOKEN):
+        return jsonify({"success": False, "error": "Invalid token."}), 401
+
+    session.clear()
+    session["authed"] = True
+    csrf_token = secrets.token_urlsafe(32)
+    session["csrf_token"] = csrf_token
+
+    response = jsonify({"success": True})
+    response.set_cookie(
+        _CSRF_COOKIE_NAME,
+        csrf_token,
+        samesite="Lax",
+        httponly=False,  # JS reads it to populate X-CSRF-Token header
+        secure=request.is_secure,
+    )
+    return response
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    session.clear()
+    response = jsonify({"success": True})
+    response.delete_cookie(_CSRF_COOKIE_NAME)
+    return response
+
+
+@app.route("/api/auth/status")
+def auth_status():
+    """Lightweight probe used by the frontend to decide whether to bootstrap
+    the SPA or redirect to /login. Always returns 200 so the frontend can
+    branch on `authed`."""
+    if not app.config.get("AUTH_ENABLED", True):
+        return jsonify({"authed": True, "auth_required": False})
+    return jsonify({"authed": _is_authed(), "auth_required": True})
 
 
 def require_api_key(view):
@@ -993,6 +1108,25 @@ def maybe_refresh_feeds():
         print(f"  [Feed Scanner] Background refresh failed: {e}")
 
 
+def print_auth_banner():
+    """Print the auto-generated auth token (and SECRET_KEY warning) so the
+    user can copy them into .env if they want stable sessions across restarts.
+    Skipped entirely when AUTH_ENABLED=false."""
+    from config import AUTH_TOKEN_AUTOGENERATED, SECRET_KEY_AUTOGENERATED
+    if not AUTH_ENABLED:
+        return
+    if AUTH_TOKEN_AUTOGENERATED:
+        print("\n" + "=" * 60)
+        print("  AUTH TOKEN (auto-generated for this session):")
+        print(f"    {AUTH_TOKEN}")
+        print("  Use this on the /login page. To persist across restarts,")
+        print("  add to .env:")
+        print(f"    SIGNALSTANCE_AUTH_TOKEN={AUTH_TOKEN}")
+        if SECRET_KEY_AUTOGENERATED:
+            print("    SIGNALSTANCE_SECRET_KEY=<run: python -c \"import secrets; print(secrets.token_urlsafe(32))\">")
+        print("=" * 60 + "\n")
+
+
 if __name__ == "__main__":
     if API_KEY_MISSING:
         print("\n" + "=" * 60)
@@ -1002,7 +1136,14 @@ if __name__ == "__main__":
         print("=" * 60 + "\n")
         print("  Starting anyway — the app will show setup instructions.\n")
 
+    print_auth_banner()
+
     # Auto-refresh feeds in background if stale
     threading.Thread(target=maybe_refresh_feeds, daemon=True).start()
 
-    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true", port=FLASK_PORT)
+    from config import BIND_HOST
+    app.run(
+        debug=os.getenv("FLASK_DEBUG", "false").lower() == "true",
+        host=BIND_HOST,
+        port=FLASK_PORT,
+    )

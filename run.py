@@ -70,14 +70,21 @@ def main():
     # to import ConfigError from a module that may itself be the source of
     # the failure.
     try:
-        from app import app
-        from config import FLASK_PORT
+        from app import app, print_auth_banner
+        from config import BIND_HOST, FLASK_PORT
     except Exception as e:
         if type(e).__name__ == "ConfigError":
             print(f"Config error: {e}", file=sys.stderr)
             sys.exit(1)
         raise
-    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true", port=FLASK_PORT)
+
+    print_auth_banner()
+
+    app.run(
+        debug=os.getenv("FLASK_DEBUG", "false").lower() == "true",
+        host=BIND_HOST,
+        port=FLASK_PORT,
+    )
 
 
 if __name__ == "__main__":

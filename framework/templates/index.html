@@ -35,7 +35,10 @@
         <header>
             <div class="header-row">
                 <h1>{{ app_name }}</h1>
-                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode"></button>
+                <div class="header-actions">
+                    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode"></button>
+                    <button class="logout-btn hidden" id="logout-btn" aria-label="Sign out" title="Sign out">Sign out</button>
+                </div>
             </div>
             <div id="today-banner" class="today-banner hidden"></div>
         </header>
@@ -327,8 +330,33 @@
             // Wraps fetch() so HTTP errors and non-JSON responses surface as
             // thrown Errors with a meaningful message, instead of being
             // silently consumed by the existing data.success branch logic.
+            // Also injects the X-CSRF-Token header on state-changing requests
+            // and redirects to /login on 401.
+            const _CSRF_COOKIE = 'csrf_token';
+            const _STATE_CHANGING = { POST: 1, PUT: 1, PATCH: 1, DELETE: 1 };
+            function _readCookie(name) {
+                const target = name + '=';
+                const parts = document.cookie ? document.cookie.split(';') : [];
+                for (let i = 0; i < parts.length; i++) {
+                    const c = parts[i].trim();
+                    if (c.indexOf(target) === 0) return decodeURIComponent(c.substring(target.length));
+                }
+                return '';
+            }
             async function apiFetch(url, options) {
+                options = options || {};
+                const method = (options.method || 'GET').toUpperCase();
+                if (_STATE_CHANGING[method]) {
+                    const token = _readCookie(_CSRF_COOKIE);
+                    if (token) {
+                        options.headers = Object.assign({}, options.headers || {}, { 'X-CSRF-Token': token });
+                    }
+                }
                 const r = await fetch(url, options);
+                if (r.status === 401) {
+                    window.location.href = '/login';
+                    throw new Error('Authentication required.');
+                }
                 let body = null;
                 try {
                     body = await r.json();
@@ -2596,6 +2624,25 @@
 
             // Apply initial route from URL hash (defaults to create tab)
             applyRoute();
+
+            // Wire up logout when auth is enabled
+            (async function () {
+                try {
+                    const status = await fetch('/api/auth/status').then(r => r.json());
+                    if (status && status.auth_required) {
+                        const btn = document.getElementById('logout-btn');
+                        if (btn) {
+                            btn.classList.remove('hidden');
+                            btn.addEventListener('click', async function () {
+                                try {
+                                    await fetch('/api/auth/logout', { method: 'POST' });
+                                } catch (_) { /* ignore — we redirect anyway */ }
+                                window.location.href = '/login';
+                            });
+                        }
+                    }
+                } catch (_) { /* ignore — status is optional UX */ }
+            })();
         })();
     </script>
     {% endif %}

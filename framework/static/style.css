@@ -181,6 +181,29 @@ h2 {
     background: var(--bg-card-hover);
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logout-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: all 0.15s ease;
+}
+
+.logout-btn:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
 .today-banner {
     margin-top: 0.75rem;
     padding: 0.75rem 1rem;

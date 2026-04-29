@@ -24,6 +24,44 @@ if not os.environ.get("SIGNALSTANCE_TENANT_DIR"):
         os.environ["SIGNALSTANCE_TENANT_DIR"] = _default_tenant
 
 
+@pytest.fixture(autouse=True)
+def _disable_auth_and_rate_limiting():
+    """Disable auth + CSRF + rate limiting by default for every test.
+
+    Tests that exercise these gates (test_auth, test_csrf, test_rate_limiting)
+    explicitly re-enable them. This keeps the existing test suite — which
+    builds its own test_client() in many places — from being broken by the
+    new security middleware.
+    """
+    try:
+        from app import app as flask_app, limiter
+    except ImportError:
+        # The app module imports business_config which requires a tenant
+        # directory. If that's unavailable in a particular test environment,
+        # there's nothing for us to disable.
+        yield
+        return
+
+    prev = {
+        "AUTH_ENABLED": flask_app.config.get("AUTH_ENABLED"),
+        "RATELIMIT_ENABLED": flask_app.config.get("RATELIMIT_ENABLED"),
+        "limiter_enabled": limiter.enabled,
+    }
+    flask_app.config["AUTH_ENABLED"] = False
+    flask_app.config["RATELIMIT_ENABLED"] = False
+    limiter.enabled = False
+    try:
+        limiter.reset()
+    except Exception:
+        pass
+
+    yield
+
+    flask_app.config["AUTH_ENABLED"] = prev["AUTH_ENABLED"]
+    flask_app.config["RATELIMIT_ENABLED"] = prev["RATELIMIT_ENABLED"]
+    limiter.enabled = prev["limiter_enabled"]
+
+
 @pytest.fixture()
 def db(monkeypatch):
     """Create an in-memory SQLite database with the full schema applied.
@@ -86,6 +124,7 @@ def app_client(monkeypatch, db):
     flask_app.config["TESTING"] = True
     flask_app.config["DEBUG"] = False
     flask_app.config["RATELIMIT_ENABLED"] = False
+    flask_app.config["AUTH_ENABLED"] = False
     limiter.enabled = False
     limiter.reset()
 

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} — Sign in</title>
+    <script>
+        (function() {
+            var theme = localStorage.getItem('ss-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .login-shell {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px var(--card-shadow);
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-card h1 {
+            margin: 0 0 0.25rem;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+        }
+        .login-card p.subtitle {
+            margin: 0 0 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        .login-card label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        .login-card input[type="password"] {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+        .login-card input[type="password"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+        .login-card .btn-primary {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 0.7rem;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+        .login-card .btn-primary:hover { background: var(--accent-hover); }
+        .login-card .btn-primary:disabled { background: var(--btn-disabled); cursor: not-allowed; }
+        .login-error {
+            margin-top: 0.75rem;
+            padding: 0.6rem 0.8rem;
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error-text);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .hidden { display: none; }
+        .login-footer {
+            margin-top: 1.25rem;
+            color: var(--text-faint);
+            font-size: 0.8rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-shell">
+        <form class="login-card" id="login-form" autocomplete="off">
+            <h1>{{ app_name }}</h1>
+            <p class="subtitle">Enter your access token to continue.</p>
+            <label for="token">Access token</label>
+            <input
+                type="password"
+                id="token"
+                name="token"
+                autocomplete="current-password"
+                required
+                aria-describedby="login-error"
+            >
+            <button type="submit" class="btn-primary" id="login-submit">Sign in</button>
+            <div class="login-error hidden" id="login-error" role="alert"></div>
+            <p class="login-footer">Configured via <code>SIGNALSTANCE_AUTH_TOKEN</code></p>
+        </form>
+    </div>
+    <script>
+        (function() {
+            var form = document.getElementById('login-form');
+            var input = document.getElementById('token');
+            var btn = document.getElementById('login-submit');
+            var err = document.getElementById('login-error');
+
+            function showError(msg) {
+                err.textContent = msg;
+                err.classList.remove('hidden');
+            }
+            function clearError() {
+                err.textContent = '';
+                err.classList.add('hidden');
+            }
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                clearError();
+                btn.disabled = true;
+                btn.textContent = 'Signing in...';
+                try {
+                    var res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: input.value }),
+                    });
+                    var body = null;
+                    try { body = await res.json(); } catch (_) {}
+                    if (res.ok && body && body.success) {
+                        window.location.href = '/';
+                        return;
+                    }
+                    showError((body && body.error) || ('Sign-in failed (' + res.status + ').'));
+                } catch (e) {
+                    showError('Network error. Try again.');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Sign in';
+                }
+            });
+
+            input.focus();
+        })();
+    </script>
+</body>
+</html>

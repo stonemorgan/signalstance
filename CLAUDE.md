@@ -100,6 +100,14 @@ scripts\run-audit.bat
 | `FLASK_PORT` | No | `5000` | Flask server port |
 | `FLASK_DEBUG` | No | `false` | Set `true` only for local dev |
 | `SIGNALSTANCE_TENANT_DIR` | Auto | — | Set by `run.py` based on `--tenant` flag |
+| `SIGNALSTANCE_BIND_HOST` | No | `127.0.0.1` | Host the Flask server binds to. Override only when intentionally exposing on the LAN |
+| `SIGNALSTANCE_AUTH_TOKEN` | No | auto-generated | Shared-secret token for the login page. If unset, a fresh token is generated and printed at startup |
+| `SIGNALSTANCE_SECRET_KEY` | No | auto-generated | Flask session signing key. If unset, sessions invalidate on every restart |
+| `AUTH_ENABLED` | No | `true` | Set `false` to disable auth + CSRF (used by tests) |
+| `RATE_LIMIT_ENABLED` | No | `true` | Set `false` to disable flask-limiter (used by tests) |
+| `RATE_LIMIT_GENERATIONS` | No | `10 per minute;100 per day` | flask-limiter window string for the 6 generation routes |
+| `RATE_LIMIT_FEED_REFRESH` | No | `1 per 5 minutes` | Cooldown for `/api/feeds/refresh` |
+| `RATE_LIMIT_DEFAULT` | No | `200 per minute` | Per-endpoint default for any route without an explicit limit |
 
 ## Code Conventions
 
@@ -138,6 +146,8 @@ Prefix indicates the operation:
 - Error handling via `_handle_api_error(e)` for Anthropic-API-adjacent exceptions (429/503/401/500); catch-all `except Exception` should `return _server_error(e)` so the full exception is logged and only a generic message reaches the client. ValueError 400s with hand-crafted messages (e.g., "Slot not found") still surface their `str(e)`.
 - Input validation: check required fields, validate categories against known list
 - Background operations use daemon threads (feed refresh, carousel cleanup)
+- Auth + CSRF are enforced globally via the `_auth_and_csrf_gate` `before_request` hook in `app.py`. Any new route is protected by default. Add the path to `_AUTH_EXEMPT_PATHS` only for unauthenticated UX surfaces (login page, login endpoint, status probe). Add to `_CSRF_EXEMPT_PATHS` only when there's no cookie to compare (currently just `/api/auth/login`). State-changing methods (POST/PUT/PATCH/DELETE) require an `X-CSRF-Token` header matching the `csrf_token` cookie set at login.
+- Rate limiting: generation routes use `@limiter.limit(RATE_LIMIT_GENERATIONS)`, `/api/feeds/refresh` uses `@limiter.limit(RATE_LIMIT_FEED_REFRESH)`. Keep the limiter decorator between `@app.route(...)` and `@require_api_key`. The 429 handler in `app.py` returns the standard JSON shape with a computed `Retry-After`.
 
 ### Prompt Templates
 - Template files are `.md` in tenant `prompts/` directory
@@ -192,6 +202,10 @@ Legal transitions enforced in `database.py:_LEGAL_TRANSITIONS` dict.
 - Input validation on categories, required fields, URL formats
 - Rate limit error handling (429 from Claude API)
 - Prompt injection resistance: untrusted content (insights, URLs, feed-article fields) is wrapped in XML tags via `engine._xml_wrap()` before reaching Claude; system prompts append `engine._SECURITY_GUARDRAIL` instructing the model to treat tagged content as data. Closing-tag defang prevents wrapped values from escaping the delimiter.
+- Auth: shared-secret token + Flask signed-cookie session. `/login` page → `/api/auth/login` validates with `hmac.compare_digest`. Global `_auth_and_csrf_gate` `before_request` hook returns 401 JSON for unauthed `/api/*` and redirects unauthed `/` to `/login`.
+- CSRF: double-submit cookie. `/api/auth/login` issues a `csrf_token` cookie at login; `apiFetch` reads it and sets `X-CSRF-Token` on state-changing requests; the gate compares header to cookie via `hmac.compare_digest`.
+- Network exposure: default `BIND_HOST=127.0.0.1` so the server isn't reachable on the LAN unless explicitly opted in.
+- Rate limiting: flask-limiter on the 6 generation routes (`10/min;100/day` default) and `/api/feeds/refresh` (`1 per 5 minutes`). Standard JSON 429 with `Retry-After`.
 
 ## Testing Requirements
 
