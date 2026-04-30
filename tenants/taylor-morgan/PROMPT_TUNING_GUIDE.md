@@ -21,7 +21,7 @@ The guide is preserved as a reference for: (a) future re-tuning if voice samples
 
 ## 1. TL;DR for Claude
 
-You are helping tune 10 prompt files for the Signal Stance tenant of an app called SignalStance. Each file is loaded at generation time and concatenated with `base_system.md` (which carries the voice). Your job in each file is to add **domain-specific structural guidance, examples, and tone calibration** that the base prompt doesn't cover.
+This guide originally documented tuning 10 prompt files for the Signal Stance tenant. **All 10 are now shipped (see Status above for commits).** If you are using this guide to re-tune a prompt — e.g., after `base_system.md` was regenerated from updated voice samples and a category prompt drifted from it, or because a new prompt was added to `_template/` — the guidance below still applies. Each file is loaded at generation time and concatenated with `base_system.md` (which carries the voice). Your job in each file is to add **domain-specific structural guidance, examples, and tone calibration** that the base prompt doesn't cover.
 
 The pattern, in one sentence: **keep the file's existing structural skeleton, replace every `<!-- AUTHORED SECTION -->` placeholder comment with substantive Signal Stance-specific guidance, and add at least one realistic worked example wherever the file has an example slot.**
 
@@ -271,7 +271,9 @@ Each brief below is a ready-to-paste prompt for a Claude session. Paste sections
 
 ## 8. Workflow
 
-1. **Open this file plus `tenants/_template/prompts/<file>.md`** (the current state of whichever prompt you're tuning) in a Claude session. The template file IS what's in `tenants/taylor-morgan/prompts/<file>.md` today — they're byte-identical.
+> **Note (2026-04-30):** all 10 prompts have shipped. The current state of each `tenants/taylor-morgan/prompts/<file>.md` is the **tuned** version, not the template — see Status (top of this doc) for commits. If you are re-tuning, start from the current tuned file (or the template, if you're reverting to start over). The byte-identical-to-template assumption that originally framed this workflow no longer holds.
+
+1. **Open this file plus the current `tenants/taylor-morgan/prompts/<file>.md`** in a Claude session. (For a true re-tune from scratch, also open the matching `tenants/_template/prompts/<file>.md` to remember the original placeholders.)
 2. Paste sections 3 (Voice DNA), 4 (Voice Samples), and 6 (Dana before/after pattern) into the session as context.
 3. Paste the relevant brief from §7 plus the current prompt file content.
 4. Review Claude's draft. Verify against the checklist in §9.
