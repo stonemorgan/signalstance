@@ -2,11 +2,33 @@
 
 ## Sample posts (5–10 required)
 
-> **Note for review:** the four posts below come from the Signal Stance
-> Content Playbook's "Good Examples" section — they are the calibrated
-> reference voice, not yet posts published by Taylor. Treat them as the
-> voice target. Replace or supplement with real published posts as the
-> 30-day calendar runs.
+> **Source and status.** The four samples below are pulled verbatim from
+> the Signal Stance Content Playbook's "Part 9: Good Examples" section
+> (Examples 1, 3, 4, 5). They are the **calibrated voice target** the
+> firm itself defines — not a placeholder. The synthesized
+> `prompts/base_system.md` was built from these and the 10 hand-tuned
+> per-prompt files reflect the same voice rules. This is a working
+> baseline, not a deficiency.
+>
+> **Trigger to refresh.** Replace or supplement these samples once **5
+> or more real published Signal Stance posts** exist that Taylor is
+> happy with. Real-post samples will outperform playbook examples
+> because they capture lived voice, topic patterns, and natural rhythm
+> that don't show up in canonical examples.
+>
+> **Refresh procedure (only when triggered).**
+> 1. Edit this file: replace the four code-fenced samples between the
+>    `---` separators with the new published posts (preserve fences and
+>    separators). Keep 5–10 samples total.
+> 2. Re-run the intake to regenerate the voice profile:
+>    `python scripts/intake_tenant.py taylor-morgan --from intake/taylor-morgan --force`
+> 3. **Caveat:** voice profile synthesis is non-deterministic
+>    (temperature 0.3). The new `prompts/base_system.md` will have the
+>    same rules but different phrasings. If the per-prompt files
+>    (category_*.md, carousel_*.md, autopilot.md, url_react.md,
+>    feed_react.md) have been hand-tuned, diff them carefully — the
+>    refresh only regenerates `base_system.md`, but you may want to
+>    re-tune the per-prompt files against the new base.
 
 ```
 Most senior professional resumes I see open with some version of this line:
