@@ -1,1 +1,149 @@
-[]
+[
+  {
+    "url": "https://www.mckinsey.com/insights/rss",
+    "name": "McKinsey Insights",
+    "category": "leadership",
+    "weight": 1.0,
+    "enabled": true
+  },
+  {
+    "url": "https://www.fastcompany.com/section/leadership.rss",
+    "name": "Fast Company — Leadership",
+    "category": "leadership",
+    "weight": 0.8,
+    "enabled": true
+  },
+  {
+    "url": "https://www.lennysnewsletter.com/feed",
+    "name": "Lenny's Newsletter",
+    "category": "careers",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://newsletter.pragmaticengineer.com/feed",
+    "name": "The Pragmatic Engineer",
+    "category": "careers",
+    "weight": 0.7,
+    "enabled": true
+  },
+  {
+    "url": "https://perell.com/feed/",
+    "name": "David Perell",
+    "category": "personal_brand",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://justinwelsh.substack.com/feed",
+    "name": "Justin Welsh",
+    "category": "personal_brand",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://www.socialmediatoday.com/feeds/news/",
+    "name": "Social Media Today",
+    "category": "linkedin",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://www.searchenginejournal.com/category/linkedin/feed/",
+    "name": "Search Engine Journal — LinkedIn",
+    "category": "linkedin",
+    "weight": 0.8,
+    "enabled": true
+  },
+  {
+    "url": "https://www.oneusefulthing.org/feed",
+    "name": "One Useful Thing — Ethan Mollick",
+    "category": "ai_professional",
+    "weight": 1.0,
+    "enabled": true
+  },
+  {
+    "url": "https://www.aisnakeoil.com/feed",
+    "name": "AI Snake Oil",
+    "category": "ai_professional",
+    "weight": 1.0,
+    "enabled": true
+  },
+  {
+    "url": "https://www.platformer.news/feed",
+    "name": "Platformer — Casey Newton",
+    "category": "ai_professional",
+    "weight": 0.8,
+    "enabled": true
+  },
+  {
+    "url": "https://annhandley.com/feed/",
+    "name": "Ann Handley",
+    "category": "content_strategy",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://www.nngroup.com/feed/rss/",
+    "name": "Nielsen Norman Group",
+    "category": "content_strategy",
+    "weight": 0.8,
+    "enabled": true
+  },
+  {
+    "url": "https://recruitingdaily.com/feed/",
+    "name": "RecruitingDaily",
+    "category": "hiring_senior",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://workology.com/feed/",
+    "name": "Workology",
+    "category": "hiring_senior",
+    "weight": 0.7,
+    "enabled": true
+  },
+  {
+    "url": "https://www.inc.com/rss/homepage.xml",
+    "name": "Inc.com",
+    "category": "fractional_market",
+    "weight": 0.9,
+    "enabled": true
+  },
+  {
+    "url": "https://www.fastcompany.com/section/work-life.rss",
+    "name": "Fast Company — Work Life",
+    "category": "fractional_market",
+    "weight": 0.8,
+    "enabled": true
+  },
+  {
+    "url": "https://www.entrepreneur.com/latest.rss",
+    "name": "Entrepreneur",
+    "category": "fractional_market",
+    "weight": 0.7,
+    "enabled": true
+  },
+  {
+    "url": "https://www.levels.fyi/blog/feed.xml",
+    "name": "Levels.fyi Blog",
+    "category": "compensation",
+    "weight": 0.8,
+    "enabled": true
+  },
+  {
+    "url": "https://sloanreview.mit.edu/feed/",
+    "name": "MIT Sloan Management Review",
+    "category": "workplace_research",
+    "weight": 1.0,
+    "enabled": true
+  },
+  {
+    "url": "https://knowledge.wharton.upenn.edu/feed/",
+    "name": "Knowledge at Wharton",
+    "category": "workplace_research",
+    "weight": 1.0,
+    "enabled": true
+  }
+]
