@@ -106,13 +106,18 @@
       "Thursday": {
         "content_type": "AI and Professional Work",
         "suggestion": "Operator observation on what AI is and isn't useful for. Never state we use it."
+      },
+      "Friday": {
+        "content_type": "Contrarian Take",
+        "suggestion": "Direct contrarian take on common LinkedIn or career wisdom that's actually wrong, oversimplified, or missing context. Skip if no idea is ready — better than filler."
       }
     },
     "suggested_times": {
       "Monday": "8:00 AM",
       "Tuesday": "8:00 AM",
       "Wednesday": "8:00 AM",
-      "Thursday": "8:00 AM"
+      "Thursday": "8:00 AM",
+      "Friday": "9:00 AM"
     },
     "timezone": "EST"
   },
