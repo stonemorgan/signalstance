@@ -53,23 +53,30 @@ signalstance/
 │   ├── carousel_renderer.py  # ReportLab PDF generation (3 templates)
 │   ├── feed_scanner.py       # RSS fetch + Claude-based relevance scoring
 │   ├── business_config.py    # Loads the active tenant's JSON config
+│   ├── validate.py           # Pure schema validator (no import side effects)
 │   ├── config.py             # Env vars + derived schedule
 │   ├── brand.py              # Typography/colors/dimensions for carousels
 │   ├── feeds.py              # Feed list loader
 │   ├── schema.sql            # Latest schema: 7 tables, FK CASCADE/SET NULL, indexes
 │   ├── migrations/           # Numbered SQL migrations (PRAGMA user_version)
 │   ├── templates/index.html  # Single-page app (apiFetch + hash routing for back-button)
+│   ├── templates/login.html  # Token-input login page
 │   ├── static/style.css      # Stylesheet with dark mode
-│   └── tests/                # pytest suite (136 tests, conftest + 5 test files)
+│   └── tests/                # pytest suite (166 tests, conftest + 8 test files)
 │
 ├── tenants/
-│   ├── _template/            # Blueprint for new tenants
-│   └── dana-wang/            # Live example tenant
-│       ├── business_config.json
-│       ├── feeds.json
-│       ├── signal_stance.db
-│       ├── generated_carousels/
-│       └── prompts/          # 11 .md prompt templates
+│   ├── _template/            # Bare blueprint copied by setup_tenant.py
+│   ├── _intake_template/     # Markdown-doc schema for LLM-assisted intake
+│   ├── dana-wang/            # Live example tenant (Dana Wang / Raleigh Resume)
+│   │   ├── business_config.json
+│   │   ├── feeds.json
+│   │   ├── signal_stance.db
+│   │   ├── generated_carousels/
+│   │   └── prompts/          # 11 .md prompt templates
+│   └── taylor-morgan/        # Built end-to-end via the intake flow
+│
+├── intake/                   # Working dirs for tenant intake (per-tenant subdirs)
+│   └── taylor-morgan/        # Filled-in source-of-truth that produced the tenant
 │
 ├── .claude/
 │   ├── settings.json         # Forces Opus model + permissions
@@ -77,6 +84,7 @@ signalstance/
 │   └── skills/audit/         # /audit slash-command skill
 │
 ├── scripts/
+│   ├── intake_tenant.py      # CLI: intake markdown → ready-to-run tenant
 │   ├── run-audit.sh          # Full 4-phase audit runner (bash)
 │   └── run-audit.bat         # Same for Windows
 │
@@ -281,6 +289,34 @@ cd framework && python -m pytest tests/ -v
 
 ## 7. Creating a new tenant (making it yours)
 
+There are two paths. The intake flow is the recommended path for any non-trivial tenant — it lets you describe the persona in natural-language markdown and synthesizes the voice profile automatically. The bare scaffolding path is faster if you already know the schema and want to fill the JSON yourself.
+
+### Path A: LLM-assisted intake (recommended)
+
+```bash
+# Copy the schema, fill the four .md files, run the script.
+cp -r tenants/_intake_template intake/<tenant-name>
+# Edit intake/<tenant-name>/01-identity.md, 02-voice-samples.md,
+#       03-content-rhythm.md, 04-brand-and-feeds.md
+python scripts/intake_tenant.py <tenant-name> --from intake/<tenant-name>
+python run.py --tenant <tenant-name>
+```
+
+The script makes five Claude API calls (four targeted JSON extractions + one voice-profile synthesis), assembles `business_config.json`, validates against `framework/validate.py`, and writes `tenants/<tenant-name>/` with a synthesized `prompts/base_system.md` plus the 10 other prompt files copied from `_template/`. Use `--dry-run` to preview without writing, `--force` to overwrite. Reserved values inside the intake markdown: `default` keeps a `_template/` value; `auto` lets the LLM propose one. `> *Note:*` blockquotes are reviewer notes and ignored as source data.
+
+The four intake files map to config sections:
+
+| Intake file | Drives |
+|---|---|
+| `01-identity.md` | `business_config.owner.*`, `business_config.scoring.*` |
+| `02-voice-samples.md` | `prompts/base_system.md` (voice profile synthesis) |
+| `03-content-rhythm.md` | `business_config.content.*`, `business_config.schedule.*` |
+| `04-brand-and-feeds.md` | `business_config.brand.*`, `feeds.json`, `business_config.feeds.categories` |
+
+`tenants/_intake_template/README.md` documents the workflow, required vs. optional fields, and the reserved-value conventions.
+
+### Path B: Bare scaffolding (manual)
+
 ```bash
 python setup_tenant.py <tenant-name>
 ```
@@ -293,7 +329,7 @@ This copies `tenants/_template/` to `tenants/<tenant-name>/`. Then:
 4. Optionally customize the other 10 prompts (category-specific angles, carousel formats, autopilot/feed-react templates). They ship pre-wired to `{{owner.name}}`, `{{platform.name}}`, etc.
 5. `python run.py --tenant <tenant-name>` — database and `generated_carousels/` are created on first run.
 
-**Rule of thumb:** never hardcode tenant data in `framework/`. If you need a new knob, add it to `_template/business_config.json` first.
+**Rule of thumb:** never hardcode tenant data in `framework/`. If you need a new knob, add it to `_template/business_config.json` AND `_intake_template/` first so both onboarding paths capture it.
 
 ---
 
@@ -334,7 +370,8 @@ For solo daily-driver use on `localhost`, the current posture is appropriate.
 | Change carousel design | `framework/carousel_renderer.py` + `framework/brand.py` |
 | Tweak RSS fetching / scoring | `framework/feed_scanner.py` |
 | Edit the UI | `framework/templates/index.html` + `framework/static/style.css` |
-| Create a second persona | `python setup_tenant.py <name>` then edit `tenants/<name>/` |
+| Create a second persona (recommended) | Fill `intake/<name>/*.md`, run `python scripts/intake_tenant.py <name> --from intake/<name>` |
+| Create a second persona (bare scaffold) | `python setup_tenant.py <name>` then edit `tenants/<name>/` |
 | Audit the codebase with Claude | `bash scripts/run-audit.sh` or `/audit` |
 
 ---

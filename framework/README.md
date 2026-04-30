@@ -70,6 +70,7 @@ signalstance/
 │   ├── carousel_renderer.py      # PDF generation
 │   ├── feed_scanner.py           # RSS fetching + scoring
 │   ├── business_config.py        # Config loader (reads from active tenant)
+│   ├── validate.py               # Pure schema validator (no import side effects)
 │   ├── config.py                 # App settings
 │   ├── brand.py                  # Visual identity for carousels
 │   ├── feeds.py                  # Feed list loader
@@ -100,10 +101,22 @@ signalstance/
 │   │   ├── signal_stance.db      # SQLite database (auto-created)
 │   │   └── generated_carousels/  # PDF output
 │   │
-│   └── _template/                # Template for new businesses
-│       ├── business_config.json  # Skeleton with placeholders
-│       ├── feeds.json            # Empty feed list
-│       └── prompts/              # 11 template prompts with {{}} vars
+│   ├── taylor-morgan/            # Taylor Morgan / Signal Stance tenant (built via intake)
+│   │
+│   ├── _template/                # Bare blueprint copied by setup_tenant.py
+│   │   ├── business_config.json  # Skeleton with placeholders
+│   │   ├── feeds.json            # Empty feed list
+│   │   └── prompts/              # 11 template prompts with {{}} vars
+│   │
+│   └── _intake_template/         # Markdown-doc schema for LLM-assisted intake
+│       ├── 01-identity.md        # Name, niche, audience, credentials
+│       ├── 02-voice-samples.md   # Sample posts, voice notes, anti-patterns
+│       ├── 03-content-rhythm.md  # Categories, posting cadence, CTAs
+│       ├── 04-brand-and-feeds.md # Colors, fonts, RSS feeds or topic hints
+│       └── README.md             # Workflow + required vs. optional fields
+│
+├── intake/                       # Working dirs for tenant intake (per-tenant)
+│   └── taylor-morgan/            # Filled-in source-of-truth (regenerates the tenant)
 │
 ├── .claude/
 │   ├── settings.json             # Project-level: enforces Opus model + permissions
@@ -121,11 +134,12 @@ signalstance/
 │       └── audit/SKILL.md        # /audit slash command
 │
 ├── scripts/
+│   ├── intake_tenant.py          # CLI: filled-in intake markdown → ready-to-run tenant
 │   ├── run-audit.sh              # Audit runner (Linux/Mac/Git Bash)
 │   └── run-audit.bat             # Audit runner (Windows)
 │
 ├── run.py                        # Entry point: selects tenant, starts app
-├── setup_tenant.py               # Helper to create new tenants
+├── setup_tenant.py               # Helper to create bare-template tenants
 ├── CLAUDE.md                     # Claude Code project instructions (auto-loaded)
 └── .env                          # API key (shared across tenants)
 ```
@@ -259,7 +273,35 @@ Click the moon/sun icon in the top-right corner to toggle dark mode. Your prefer
 
 Signal & Stance supports running the same framework code for multiple businesses. Each business gets its own tenant directory with config, prompts, feeds, and data.
 
-### Creating a New Tenant
+### Creating a New Tenant — Two Paths
+
+**Path A: LLM-assisted intake (recommended)** — fill in four markdown documents describing the new tenant; a CLI script extracts structured config and synthesizes the voice profile.
+
+```bash
+# 1. Copy the intake schema to a working location for this tenant
+cp -r tenants/_intake_template intake/my-business
+
+# 2. Fill in the four markdown files for the new tenant. Each file has
+#    sections with explicit field rules:
+#    - 01-identity.md       (name, niche, audience, credentials)
+#    - 02-voice-samples.md  (5-10 sample posts, voice notes, anti-patterns)
+#    - 03-content-rhythm.md (categories, posting cadence, CTAs)
+#    - 04-brand-and-feeds.md (colors, fonts, RSS feeds or topic hints)
+#    See tenants/_intake_template/README.md for the full workflow.
+
+# 3. Preview what the script will produce (no files written):
+python scripts/intake_tenant.py my-business --from intake/my-business --dry-run
+
+# 4. Generate the tenant for real:
+python scripts/intake_tenant.py my-business --from intake/my-business
+
+# 5. Run the app:
+python run.py --tenant my-business
+```
+
+The script makes five Claude API calls (four targeted JSON extractions + one voice-profile synthesis), assembles `business_config.json`, validates against `framework/validate.py`, and writes `tenants/my-business/` with a synthesized `prompts/base_system.md` and the 10 other prompt files copied from `_template/`. Reserved values: `default` keeps a `_template/` value, `auto` lets the LLM propose one. Re-running with `--force` regenerates from the same intake docs.
+
+**Path B: Bare scaffolding (manual)** — copy the empty template and fill the JSON yourself.
 
 ```bash
 python setup_tenant.py my-business

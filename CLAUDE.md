@@ -21,7 +21,8 @@ signalstance/
 │   ├── database.py            (SQLite operations, migrations, state machine)
 │   ├── carousel_renderer.py   (ReportLab PDF generation)
 │   ├── feed_scanner.py        (RSS fetch + relevance scoring)
-│   ├── business_config.py     (tenant config loader + ConfigError validation)
+│   ├── business_config.py     (tenant config loader; uses validate.py)
+│   ├── validate.py            (pure schema validator — no import side effects)
 │   ├── config.py              (env vars + derived settings)
 │   ├── brand.py               (colors, fonts, dimensions)
 │   ├── feeds.py               (feed config loader)
@@ -30,29 +31,38 @@ signalstance/
 │   │   └── 0001_add_cascade_delete.sql
 │   ├── requirements.txt
 │   ├── templates/
-│   │   └── index.html         (full SPA, vanilla JS, apiFetch helper)
+│   │   ├── index.html         (full SPA, vanilla JS, apiFetch helper)
+│   │   └── login.html         (token-input login page)
 │   ├── static/
 │   │   └── style.css          (dark mode, responsive)
-│   └── tests/                 (136 tests, ~3-4s, no external deps)
+│   └── tests/                 (166 tests, ~7-8s, no external deps)
 │       ├── conftest.py        (shared fixtures, in-memory SQLite)
 │       ├── test_app_security.py
 │       ├── test_database.py
 │       ├── test_engine_parsing.py
 │       ├── test_config_validation.py
-│       └── test_migrations.py
+│       ├── test_migrations.py
+│       ├── test_rate_limiting.py
+│       ├── test_auth.py
+│       └── test_csrf.py
 ├── tenants/                    # Per-business directories
-│   ├── _template/             (blueprint for new tenants)
-│   └── dana-wang/             (example: Dana Wang CPRW)
+│   ├── _template/             (blueprint copied by setup_tenant.py)
+│   ├── _intake_template/      (intake-doc schema; 4 .md files + README)
+│   ├── dana-wang/             (example: Dana Wang CPRW)
+│   └── taylor-morgan/         (Taylor Morgan / Signal Stance — built via intake)
+├── intake/                     # Working dirs for tenant intake (per-tenant subdirs)
+│   └── taylor-morgan/         (filled-in source-of-truth that produced the tenant)
 ├── .claude/
 │   ├── agents/                (9 audit agents, all model: opus)
 │   ├── skills/
 │   └── settings.json          (project-level model + permissions)
 ├── scripts/
+│   ├── intake_tenant.py       (CLI: intake markdown → ready-to-run tenant)
 │   ├── run-audit.sh
 │   └── run-audit.bat
 ├── audit-reports/              (generated audit findings)
 ├── run.py                     (76 lines — CLI entry point)
-├── setup_tenant.py            (41 lines — tenant scaffolding)
+├── setup_tenant.py            (41 lines — bare-template scaffolding)
 ├── .env                       (ANTHROPIC_API_KEY — never commit)
 └── CLAUDE.md                  (this file)
 ```
@@ -81,8 +91,16 @@ cd framework && python -m pytest tests/ -v
 # Install dependencies
 pip install -r framework/requirements.txt
 
-# Create a new tenant
+# Create a new tenant from the bare template (manual fill-in)
 python setup_tenant.py <tenant-name>
+
+# Create a new tenant from filled-in intake markdown (preferred)
+# 1. cp -r tenants/_intake_template intake/<tenant-name>
+# 2. Fill in the four .md files (identity, voice samples, content rhythm, brand+feeds)
+# 3. Run the extraction:
+python scripts/intake_tenant.py <tenant-name> --from intake/<tenant-name>
+python scripts/intake_tenant.py <tenant-name> --from intake/<tenant-name> --dry-run
+python scripts/intake_tenant.py <tenant-name> --from intake/<tenant-name> --force
 
 # Run full audit suite
 bash scripts/run-audit.sh
@@ -180,9 +198,10 @@ Legal transitions enforced in `database.py:_LEGAL_TRANSITIONS` dict.
 3. **Each tenant has its own SQLite database** — path derived from `SIGNALSTANCE_TENANT_DIR` + config `database_name`
 4. **Prompt resolution is tenant-first** — check `{tenant_dir}/prompts/` before `framework/` fallback
 5. **Generated carousels go to `{tenant_dir}/generated_carousels/`** — never to a shared location
-6. **New tenants are created from `_template/`** — use `setup_tenant.py`, never copy another tenant
+6. **New tenants are created from `_template/`** — use `setup_tenant.py` for a bare scaffold, or `scripts/intake_tenant.py` for the LLM-assisted flow that reads filled-in markdown from `intake/<name>/` and synthesizes the voice profile. Never copy another tenant directly
 7. **Framework code must work with any valid `business_config.json`** — don't assume specific categories, colors, or schedule
-8. **The `_template/` directory is the canonical schema** — if you add new config fields, update the template first
+8. **The `_template/` directory is the canonical schema** — if you add new config fields, update the template first AND `tenants/_intake_template/` so the intake flow can capture them
+9. **Voice profile synthesis is non-deterministic** — re-running the intake script produces a slightly different `prompts/base_system.md` each time. Lock in a version you're happy with and avoid casual re-runs that overwrite hand-tuned voice rules
 
 ## Security Rules
 
@@ -227,8 +246,10 @@ cd framework && python -m pytest tests/ -v
 - Parsing/engine tests go in `test_engine_parsing.py`
 - Config validation tests go in `test_config_validation.py`
 - Migration tests go in `test_migrations.py`
+- Auth/CSRF tests go in `test_auth.py` / `test_csrf.py`
+- Rate-limit tests go in `test_rate_limiting.py`
 - New test files: `test_<module>.py` in `framework/tests/`
-- Current count: 136 tests, ~3-4 seconds
+- Current count: 166 tests, ~7-8 seconds
 
 ## Database Schema
 
@@ -275,7 +296,9 @@ The project includes a 4-phase audit system run via `scripts/run-audit.sh`:
 | PDF carousels | `framework/carousel_renderer.py` | `framework/brand.py` |
 | RSS feeds | `framework/feed_scanner.py` | `framework/feeds.py` |
 | Tenant config | `framework/business_config.py` | tenant `business_config.json` |
+| Config schema validator | `framework/validate.py` | `validate_business_config()` (pure, no side effects) |
 | Frontend SPA | `framework/templates/index.html` | `framework/static/style.css` |
 | App entry point | `run.py` | `framework/config.py` |
-| Tenant setup | `setup_tenant.py` | `tenants/_template/` |
+| Tenant scaffolding (bare) | `setup_tenant.py` | `tenants/_template/` |
+| Tenant intake (LLM-assisted) | `scripts/intake_tenant.py` | `tenants/_intake_template/`, `intake/<name>/` |
 | Tests | `framework/tests/conftest.py` | `framework/tests/test_*.py` |
