@@ -301,4 +301,5 @@ The project includes a 4-phase audit system run via `scripts/run-audit.sh`:
 | App entry point | `run.py` | `framework/config.py` |
 | Tenant scaffolding (bare) | `setup_tenant.py` | `tenants/_template/` |
 | Tenant intake (LLM-assisted) | `scripts/intake_tenant.py` | `tenants/_intake_template/`, `intake/<name>/` |
+| Per-tenant prompt tuning | `tenants/<name>/PROMPT_TUNING_GUIDE.md` (when present) | `tenants/_template/prompts/*.md` (skeleton) |
 | Tests | `framework/tests/conftest.py` | `framework/tests/test_*.py` |
