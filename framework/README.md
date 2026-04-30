@@ -30,6 +30,13 @@ pip install -r framework/requirements.txt
 ANTHROPIC_API_KEY=your-api-key-here
 ```
 
+For stable login sessions across restarts, also persist these (otherwise they auto-generate on every startup and the login token is printed to the console):
+
+```
+SIGNALSTANCE_AUTH_TOKEN=<generate with: python -c "import secrets; print(secrets.token_urlsafe(32))">
+SIGNALSTANCE_SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_urlsafe(32))">
+```
+
 4. Run the app:
 
 ```bash
@@ -48,7 +55,9 @@ To see all available tenants:
 python run.py --list
 ```
 
-5. Open [http://localhost:5000](http://localhost:5000) in your browser.
+5. Open [http://localhost:5000](http://localhost:5000) in your browser. You'll land on the login page — paste your `SIGNALSTANCE_AUTH_TOKEN` (or grab the auto-generated one printed to the console) to enter the app.
+
+The server binds to `127.0.0.1` by default so it isn't reachable on the LAN. Override with `SIGNALSTANCE_BIND_HOST=0.0.0.0` only when you intentionally want network exposure (and trust the strength of your auth token).
 
 ## Project Structure
 
@@ -68,15 +77,20 @@ signalstance/
 │   ├── migrations/               # Numbered SQL migrations (PRAGMA user_version)
 │   │   └── 0001_add_cascade_delete.sql
 │   ├── requirements.txt          # Python dependencies
-│   ├── templates/index.html      # Frontend SPA (apiFetch wraps all fetch calls; hash routing for back-button)
+│   ├── templates/
+│   │   ├── index.html            # Frontend SPA (apiFetch wraps all fetch calls; hash routing for back-button; CSRF header injection)
+│   │   └── login.html            # Token-input login page (rendered for unauthed visitors)
 │   ├── static/style.css          # Styling
-│   └── tests/                    # Pytest suite (136 tests, no API keys needed)
-│       ├── conftest.py           # Shared fixtures (in-memory DB, patched config)
+│   └── tests/                    # Pytest suite (166 tests, no API keys or external services needed)
+│       ├── conftest.py           # Shared fixtures (in-memory DB, autouse-disable auth + rate limiting)
 │       ├── test_database.py      # Database CRUD, state machine, FK enforcement
 │       ├── test_engine_parsing.py # Draft/carousel parsing, field extraction
 │       ├── test_app_security.py  # SSRF, path traversal, debug mode, error format
 │       ├── test_config_validation.py # business_config.json schema validation
-│       └── test_migrations.py    # Fresh/legacy DB upgrade paths, CASCADE behavior
+│       ├── test_migrations.py    # Fresh/legacy DB upgrade paths, CASCADE behavior
+│       ├── test_rate_limiting.py # flask-limiter 429 shape, Retry-After, feed-refresh cooldown
+│       ├── test_auth.py          # Login flow, gate behavior, session, logout, status
+│       └── test_csrf.py          # Double-submit cookie pattern, header/cookie compare
 │
 ├── tenants/
 │   ├── dana-wang/                # Dana Wang / Raleigh Resume tenant
@@ -289,13 +303,16 @@ cd framework
 python -m pytest tests/ -v
 ```
 
-**136 tests** across 5 modules, executing in ~3 seconds:
+**166 tests** across 8 modules, executing in ~7-8 seconds:
 
 - **`test_database.py`** (46 tests) — CRUD operations for all 7 tables, calendar state machine transitions (legal and illegal), foreign key enforcement, connection cleanup under stress, week slot generation idempotency, batch helpers (`get_carousel_data_for_generations`, `get_feeds_with_article_counts`), multi-insight history grouping.
 - **`test_engine_parsing.py`** (34 tests) — `parse_drafts()` with well-formed/malformed/edge-case inputs, carousel content parsing for all 3 templates (tips, before/after, myth/reality), `_extract_field()` helper, `_xml_wrap` prompt-injection delimiter (defang, `None`/non-string handling, tag-specific defanging).
 - **`test_app_security.py`** (37 tests) — SSRF URL validation (private IPs, bad schemes), path traversal rejection on carousel downloads, debug mode defaults, JSON error response format, `_handle_api_error` categorization, `_server_error` sanitization (no leak of raw exception text), preservation of ValueError 400 messages, `_save_drafts` persistence + missing-`angle` fallback, `require_api_key` short-circuit + pass-through.
 - **`test_config_validation.py`** (11 tests) — `ConfigError` raised on malformed JSON, missing required keys, wrong types, unknown weekdays, missing day subkeys, missing suggested-time entries.
 - **`test_migrations.py`** (8 tests) — fresh DB stamps latest `user_version`, legacy DB at `user_version=0` upgrades with data preserved, idempotent re-run, CASCADE delete on generations/feed_articles/carousel_data, SET NULL on calendar_slots.
+- **`test_rate_limiting.py`** (6 tests) — 429 response shape (`success: false` + `Retry-After` header), feed-refresh cooldown, read endpoints unaffected by the default limit, default fixture not throttled.
+- **`test_auth.py`** (16 tests) — auth gate (401 on `/api/*`, redirect to `/login` on `/`), login flow (valid/invalid/missing token), `hmac.compare_digest` constant-time check, session-cookie roundtrip, logout clears session, `/api/auth/status` reflects state, `AUTH_ENABLED=False` bypass.
+- **`test_csrf.py`** (8 tests) — POST/PUT/DELETE rejected with missing/mismatched `X-CSRF-Token`, accepted when matching cookie, GET unaffected, login endpoint exempt (no cookie exists yet at that point), `AUTH_ENABLED=False` bypass.
 
 All tests use an in-memory SQLite database and mocked configuration. No Anthropic API calls are made.
 
@@ -384,6 +401,23 @@ The default model is `claude-sonnet-4-20250514`. Override it by setting `ANTHROP
 
 Flask debug mode is off by default. To enable it for development (enables auto-reload and the Werkzeug debugger), set `FLASK_DEBUG=true` in your `.env` file. Never enable debug mode on a network-accessible deployment.
 
+### Auth, Rate Limiting, and Network Bind
+
+| Variable | Default | Notes |
+|---|---|---|
+| `AUTH_ENABLED` | `true` | Set `false` to disable auth + CSRF entirely (development only). |
+| `SIGNALSTANCE_AUTH_TOKEN` | auto-generated | Login token. Auto-generated and printed at startup if unset; persist in `.env` for stable login across restarts. |
+| `SIGNALSTANCE_SECRET_KEY` | auto-generated | Flask session signing key. Persist in `.env` so existing browser sessions survive restarts. |
+| `SIGNALSTANCE_BIND_HOST` | `127.0.0.1` | Host the Flask server binds to. Override only when intentionally exposing on the LAN. |
+| `RATE_LIMIT_ENABLED` | `true` | Disable flask-limiter (development only). |
+| `RATE_LIMIT_GENERATIONS` | `10 per minute;100 per day` | Per-IP window for the 6 generation routes. flask-limiter syntax — `;` separates simultaneous windows. |
+| `RATE_LIMIT_FEED_REFRESH` | `1 per 5 minutes` | Cooldown for `POST /api/feeds/refresh`. |
+| `RATE_LIMIT_DEFAULT` | `200 per minute` | Catch-all for read endpoints with no explicit limit. |
+
+**How auth works:** The shared-secret token is the only credential. `/login` accepts the token, the server validates with `hmac.compare_digest` and sets a Flask signed-cookie session plus a `csrf_token` cookie. `apiFetch` reads the cookie and sets `X-CSRF-Token` on POST/PUT/PATCH/DELETE; the server compares header to cookie. 401 responses redirect the SPA to `/login`.
+
+**429 responses:** rate-limited responses return `{"success": false, "error": "Rate limit exceeded (…)…"}` with a `Retry-After` header (seconds until reset).
+
 ## Claude Code Configuration
 
 The project includes two files that configure Claude Code sessions:
@@ -412,6 +446,20 @@ Verify your key at [console.anthropic.com](https://console.anthropic.com). Keys 
 ### "business_config.json not found"
 
 Make sure you're running the app via `python run.py --tenant <name>` and that the tenant directory exists in `tenants/` with a valid `business_config.json`.
+
+### "Authentication required" / stuck on /login
+
+Each restart auto-generates a new `SIGNALSTANCE_AUTH_TOKEN` if one isn't set in `.env` — and prints it to the console as a copy-pasteable banner. Either grab the token from the console output, or set both `SIGNALSTANCE_AUTH_TOKEN` and `SIGNALSTANCE_SECRET_KEY` in `.env` to make sessions persist across restarts.
+
+If you've persisted the values but old browser sessions still fail, your `SIGNALSTANCE_SECRET_KEY` changed since the cookie was issued — log out (or clear the `session` and `csrf_token` cookies for `localhost:5000`) and log back in.
+
+### "Rate limit exceeded" while developing
+
+The default generation limit is 10/min and 100/day per client IP. For development, either set `RATE_LIMIT_ENABLED=false` in `.env`, or bump the windows: `RATE_LIMIT_GENERATIONS="100 per minute;1000 per day"`. The 429 response includes a `Retry-After` header.
+
+### "CSRF token missing or invalid"
+
+The frontend sets the `X-CSRF-Token` header automatically via `apiFetch` after you log in. If you see this on a fresh login, your browser may be blocking the `csrf_token` cookie — check that cookies for `localhost` aren't blocked. If you're calling the API directly (curl, Postman), include the header by reading the `csrf_token` cookie value returned by `POST /api/auth/login`.
 
 ## Audit Suite
 
