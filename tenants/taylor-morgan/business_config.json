@@ -1,0 +1,140 @@
+{
+  "app_name": "Signal Stance",
+  "database_name": "signal_stance.db",
+  "owner": {
+    "name": "Taylor Lance Morgan",
+    "title": "Founder",
+    "business": "Signal Stance",
+    "url": "linkedin.com/in/taylorlmorgan",
+    "credentials": [
+      "Founder of Signal Stance (2026) \u2014 career and visibility services for senior professionals and business owners",
+      "Founder of Raleigh Resume (2023) \u2014 credentialed career services firm, led by Dana Wang, CPRW",
+      "President and Founder of Morgan Heights Co., the operating parent for both firms",
+      "Years of practice in career services, personal brand, and content strategy",
+      "Built and operates the SignalStance Content Engine, the production infrastructure both firms use"
+    ],
+    "niche_summary": "Career and visibility services for senior professionals and business owners \u2014 personal brand development, content strategy, LinkedIn strategy and ghostwriting, and career and positioning strategy. The work centers on the strategic thinking that has to happen before any writing begins: who someone is, what they offer, and how to present that clearly to the audiences that matter. Mid-market positioning between budget services and premium executive coaching firms, with editorial-quality output delivered through senior strategic input combined with AI-augmented production.",
+    "audience": "Director-level professionals and above at companies of 200\u201310,000 employees; solo consultants and fractional executives ($200K+) whose brand drives their pipeline; founders and small-business owners whose visibility matters for their work; established professionals (30s\u201350s) building long-term presence.",
+    "audience_examples": "Director of Engineering, VP of Product, Senior Director of Marketing, Fractional CFO, Founder of a B2B consultancy",
+    "specializations": [
+      "Personal brand development for senior professionals and business owners",
+      "LinkedIn strategy and ghostwriting (ongoing presence management)",
+      "Content strategy \u2014 themes, cadence, and substance over time",
+      "Career and positioning strategy \u2014 resumes, LinkedIn profiles, broader career materials",
+      "Service design and direct founder involvement in every engagement",
+      "AI-augmented production with strategic judgment kept human"
+    ],
+    "client_outcomes": "Substantial volume of clients across technology, finance, healthcare, and other technical and professional industries served through Raleigh Resume since 2023 \u2014 from mid-career professionals to senior executives and founders. Signal Stance Year 1 targets: 10\u201315 Foundation Projects, 3\u20136 Brand Builder retainers."
+  },
+  "platform": {
+    "name": "LinkedIn",
+    "post_word_range": [
+      200,
+      500
+    ],
+    "carousel_dimensions": [
+      1080,
+      1080
+    ],
+    "scheduling_url": "https://linkedin.com/feed"
+  },
+  "brand": {
+    "primary": "#2D4A57",
+    "secondary": "#4A6B7A",
+    "accent": "#C9A96E",
+    "background": "#FAF8F4",
+    "background_alt": "#F0EBE2",
+    "text_dark": "#1A1A1A",
+    "text_light": "#FAF8F4",
+    "text_muted": "#6B6B6B",
+    "divider": "#D9D2C5",
+    "negative": "#9A4A3C",
+    "positive": "#4A7A5C",
+    "font_heading": "Helvetica-Bold",
+    "font_body": "Helvetica",
+    "font_accent": "Helvetica-Oblique"
+  },
+  "content": {
+    "categories": {
+      "pattern": {
+        "label": "Pattern",
+        "prompt_label": "I keep seeing...",
+        "placeholder": "Share an anonymized observation from recent client engagements - what pattern emerges across many professionals?"
+      },
+      "faq": {
+        "label": "FAQ",
+        "prompt_label": "Client asked...",
+        "placeholder": "Address a craft question about professional presentation that comes up repeatedly in your work."
+      },
+      "noticed": {
+        "label": "Noticed",
+        "prompt_label": "Just noticed...",
+        "placeholder": "Share an operator observation on AI and professional work, or subtle shifts in how the work is changing."
+      },
+      "hottake": {
+        "label": "Hot Take",
+        "prompt_label": "Hot take...",
+        "placeholder": "Challenge conventional LinkedIn or career wisdom where the common advice is wrong or oversimplified."
+      }
+    },
+    "carousel_templates": [
+      "tips",
+      "beforeafter",
+      "mythreality"
+    ],
+    "default_ctas": {
+      "tips": "More writing at signalstance.com",
+      "beforeafter": "Read the longer essay at signalstance.com/blog",
+      "mythreality": "More writing at signalstance.com",
+      "general": "More writing at signalstance.com"
+    }
+  },
+  "schedule": {
+    "days": {
+      "Monday": {
+        "content_type": "Patterns from Client Work",
+        "suggestion": "Share an anonymized observation from recent engagements. What's the pattern across many clients?"
+      },
+      "Tuesday": {
+        "content_type": "Craft of Professional Presentation",
+        "suggestion": "Specific observation on resume, LinkedIn, or bio craft. Pick one mechanic."
+      },
+      "Wednesday": {
+        "content_type": "Strategy Before Execution",
+        "suggestion": "The thinking that has to happen before any writing. Positioning, identity, professional brand."
+      },
+      "Thursday": {
+        "content_type": "AI and Professional Work",
+        "suggestion": "Operator observation on what AI is and isn't useful for. Never state we use it."
+      }
+    },
+    "suggested_times": {
+      "Monday": "8:00 AM",
+      "Tuesday": "8:00 AM",
+      "Wednesday": "8:00 AM",
+      "Thursday": "8:00 AM"
+    },
+    "timezone": "EST"
+  },
+  "feeds": {
+    "categories": {
+      "leadership": "Executive leadership, senior management strategy, perspectives from Director-level and above.",
+      "careers": "Senior-level career strategy, transitions, and positioning. Excludes early-career and entry-level content.",
+      "personal_brand": "Personal branding theory and practice for serious professionals \u2014 substance over performance.",
+      "linkedin": "LinkedIn platform mechanics, algorithm changes, feature releases, behavioral shifts on the platform.",
+      "ai_professional": "AI in professional writing and knowledge work \u2014 operator-level analysis, not hype or panic.",
+      "content_strategy": "Editorial content strategy, longform and short-form mechanics, craft observations.",
+      "hiring_senior": "Recruiting practices specifically at Director-level and above. Distinct from entry-level hiring trends.",
+      "fractional_market": "The market for fractional executives, solo consultants, and independent professional services.",
+      "compensation": "Compensation data and trends for senior professionals, with an emphasis on fractional and consultant rates.",
+      "workplace_research": "Organizational research relevant to senior-career decision-making \u2014 not employee-engagement filler."
+    }
+  },
+  "scoring": {
+    "high_relevance_threshold": 0.7,
+    "medium_relevance_threshold": 0.5,
+    "scoring_description": "Score articles for relevance to {owner.name}'s niche: {owner.niche_summary}. Target audience: {owner.audience}.",
+    "scoring_high": "Articles about personal branding, LinkedIn strategy, career positioning, and professional visibility for senior executives and business owners are directly relevant to {owner.name}'s expertise in {owner.niche_summary}.",
+    "scoring_low": "Articles about entry-level career advice, general business topics unrelated to personal branding, or content focused on industries outside professional services are off-topic for this niche."
+  }
+}
