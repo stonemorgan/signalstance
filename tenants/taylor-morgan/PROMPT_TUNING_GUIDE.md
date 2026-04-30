@@ -1,6 +1,6 @@
 # Taylor Morgan / Signal Stance — Prompt Tuning Guide
 
-**Status:** 10 of 11 prompt files in `tenants/taylor-morgan/prompts/` are still byte-identical to `tenants/_template/`. Only `base_system.md` has been synthesized for Signal Stance. This guide is a self-contained brief for hand-tuning the remaining 10, designed to be opened in a fresh Claude session and worked through one prompt at a time.
+**Status:** 8 of 11 prompt files in `tenants/taylor-morgan/prompts/` are still byte-identical to `tenants/_template/`. `base_system.md` has been synthesized for Signal Stance, and `category_pattern.md` (commit `ca2a3d6`) and `category_faq.md` (commit `178e66d`) have been hand-tuned (both 2026-04-30). This guide is a self-contained brief for hand-tuning the remaining 8, designed to be opened in a fresh Claude session and worked through one prompt at a time.
 
 **Audience for this document:** the human operator (Taylor) plus whatever Claude session is helping. A Claude session reading this cold should have everything it needs to draft a tuned prompt — voice rules, source intake, current prompt skeleton, and a worked example.
 
@@ -120,20 +120,20 @@ These four posts are the voice target — anything you draft as an example insid
 
 Each prompt has a structural skeleton already in place. The work is filling in the placeholder sections with Signal Stance-specific guidance and examples.
 
-| # | File | UI surface | Placeholders to fill | Priority |
-|---|------|------------|---------------------|----------|
-| 1 | `category_pattern.md` | Pattern card | Tone | High (Mon content) |
-| 2 | `category_faq.md` | FAQ card | Tone | High (Tue content) |
-| 3 | `category_noticed.md` | Noticed card | Tone | High (Thu content) |
-| 4 | `category_hottake.md` | Hot Take card | Tone | High (Fri flex) |
-| 5 | `autopilot.md` | Autopilot button | Search topics, evaluation criteria | High (no-input fallback) |
-| 6 | `url_react.md` | URL React | Domain-specific reaction approaches | Medium |
-| 7 | `feed_react.md` | RSS feed item React | Category-specific calibration | Medium (blocked on empty `feeds.json`) |
-| 8 | `carousel_tips.md` | Carousel: Tips | Voice rules, worked example | Medium (when carousels go live) |
-| 9 | `carousel_beforeafter.md` | Carousel: Before/After | Voice rules, worked example | Medium |
-| 10 | `carousel_mythreality.md` | Carousel: Myth/Reality | Voice rules, worked example | Medium |
+| # | File | UI surface | Placeholders to fill | Priority | Status |
+|---|------|------------|---------------------|----------|--------|
+| 1 | `category_pattern.md` | Pattern card | Tone | High (Mon content) | **Done** — `ca2a3d6` |
+| 2 | `category_faq.md` | FAQ card | Tone | High (Tue content) | **Done** — `178e66d` |
+| 3 | `category_noticed.md` | Noticed card | Tone | High (Thu content) | Pending |
+| 4 | `category_hottake.md` | Hot Take card | Tone | High (Fri flex) | Pending |
+| 5 | `autopilot.md` | Autopilot button | Search topics, evaluation criteria | High (no-input fallback) | Pending |
+| 6 | `url_react.md` | URL React | Domain-specific reaction approaches | Medium | Pending |
+| 7 | `feed_react.md` | RSS feed item React | Category-specific calibration | Medium (blocked on empty `feeds.json`) | Pending |
+| 8 | `carousel_tips.md` | Carousel: Tips | Voice rules, worked example | Medium (when carousels go live) | Pending |
+| 9 | `carousel_beforeafter.md` | Carousel: Before/After | Voice rules, worked example | Medium | Pending |
+| 10 | `carousel_mythreality.md` | Carousel: Myth/Reality | Voice rules, worked example | Medium | Pending |
 
-**Recommended order:** 1 → 2 → 3 → 4 (the four categories Taylor will use immediately), then 5 (autopilot — high leverage when no insight is in-hand), then 6, then carousels last (8/9/10 only matter once Signal Stance starts producing carousels).
+**Recommended order:** 1 → 2 → 3 → 4 (the four categories Taylor will use immediately), then 5 (autopilot — high leverage when no insight is in-hand), then 6, then carousels last (8/9/10 only matter once Signal Stance starts producing carousels). **Currently on:** #3 — `category_noticed.md`.
 
 ---
 
