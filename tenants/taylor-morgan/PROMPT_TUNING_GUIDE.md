@@ -1,6 +1,19 @@
 # Taylor Morgan / Signal Stance — Prompt Tuning Guide
 
-**Status:** 7 of 11 prompt files in `tenants/taylor-morgan/prompts/` are still byte-identical to `tenants/_template/`. `base_system.md` has been synthesized for Signal Stance, and `category_pattern.md` (commit `ca2a3d6`), `category_faq.md` (commit `178e66d`), and `category_noticed.md` (commit `eed9227`) have been hand-tuned (all 2026-04-30). This guide is a self-contained brief for hand-tuning the remaining 7, designed to be opened in a fresh Claude session and worked through one prompt at a time.
+**Status:** All 10 prompts hand-tuned as of 2026-04-30. `base_system.md` was synthesized at intake; the remaining 10 (4 category, 1 autopilot, 2 react, 3 carousel) have all been hand-tuned and committed:
+
+- `category_pattern.md` — `ca2a3d6`
+- `category_faq.md` — `178e66d`
+- `category_noticed.md` — `eed9227`
+- `category_hottake.md` — `930edab`
+- `autopilot.md` — `169b85d`
+- `url_react.md` — `70016fa`
+- `feed_react.md` — `3ab3de4`
+- `carousel_tips.md` — `cd0b8c0`
+- `carousel_beforeafter.md` — `81df79f`
+- `carousel_mythreality.md` — `d1ce325`
+
+The guide is preserved as a reference for: (a) future re-tuning if voice samples are updated and base_system is regenerated, (b) onboarding future tenants who need the same prompt-tuning shape, (c) reference material on the Signal Stance voice divergences from Dana (no engagement bait, AI-as-patterns-not-personal-practice).
 
 **Audience for this document:** the human operator (Taylor) plus whatever Claude session is helping. A Claude session reading this cold should have everything it needs to draft a tuned prompt — voice rules, source intake, current prompt skeleton, and a worked example.
 
@@ -125,15 +138,15 @@ Each prompt has a structural skeleton already in place. The work is filling in t
 | 1 | `category_pattern.md` | Pattern card | Tone | High (Mon content) | **Done** — `ca2a3d6` |
 | 2 | `category_faq.md` | FAQ card | Tone | High (Tue content) | **Done** — `178e66d` |
 | 3 | `category_noticed.md` | Noticed card | Tone | High (Thu content) | **Done** — `eed9227` |
-| 4 | `category_hottake.md` | Hot Take card | Tone | High (Fri flex) | Pending |
-| 5 | `autopilot.md` | Autopilot button | Search topics, evaluation criteria | High (no-input fallback) | Pending |
-| 6 | `url_react.md` | URL React | Domain-specific reaction approaches | Medium | Pending |
-| 7 | `feed_react.md` | RSS feed item React | Category-specific calibration | Medium (blocked on empty `feeds.json`) | Pending |
-| 8 | `carousel_tips.md` | Carousel: Tips | Voice rules, worked example | Medium (when carousels go live) | Pending |
-| 9 | `carousel_beforeafter.md` | Carousel: Before/After | Voice rules, worked example | Medium | Pending |
-| 10 | `carousel_mythreality.md` | Carousel: Myth/Reality | Voice rules, worked example | Medium | Pending |
+| 4 | `category_hottake.md` | Hot Take card | Tone | High (Fri flex) | **Done** — `930edab` |
+| 5 | `autopilot.md` | Autopilot button | Search topics, evaluation criteria | High (no-input fallback) | **Done** — `169b85d` |
+| 6 | `url_react.md` | URL React | Domain-specific reaction approaches | Medium | **Done** — `70016fa` |
+| 7 | `feed_react.md` | RSS feed item React | Category-specific calibration | Medium (blocked on empty `feeds.json`) | **Done** — `3ab3de4` |
+| 8 | `carousel_tips.md` | Carousel: Tips | Voice rules, worked example | Medium (when carousels go live) | **Done** — `cd0b8c0` |
+| 9 | `carousel_beforeafter.md` | Carousel: Before/After | Voice rules, worked example | Medium | **Done** — `81df79f` |
+| 10 | `carousel_mythreality.md` | Carousel: Myth/Reality | Voice rules, worked example | Medium | **Done** — `d1ce325` |
 
-**Recommended order:** 1 → 2 → 3 → 4 (the four categories Taylor will use immediately), then 5 (autopilot — high leverage when no insight is in-hand), then 6, then carousels last (8/9/10 only matter once Signal Stance starts producing carousels). **Currently on:** #4 — `category_hottake.md`.
+**Recommended order (historical, for reference):** 1 → 2 → 3 → 4 (the four categories Taylor would use immediately), then 5 (autopilot — high leverage when no insight is in-hand), then 6, then carousels last (8/9/10 only matter once Signal Stance starts producing carousels). All 10 shipped in this order on 2026-04-30.
 
 ---
 
